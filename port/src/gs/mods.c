@@ -1008,6 +1008,28 @@ static void push_game(lua_State *L, const FpState *fp, const ModsGame *g) {
         }
         lua_setfield(L, -2, "status");
         set_vec(L, "pos", f->pos);
+        {   /* defence trainer: zcounter and guard (the circle evasion); ticks are this fighter's own */
+            static const char *const names[4] = {"zcounter", "guard", "dodge", "rush"};
+            lua_createtable(L, 0, 4);
+            for (k = 0; k < 4; k++) {
+                const struct ModsDefence *d = &f->def[k];
+                lua_createtable(L, 0, 12);
+                set_int(L, "tick", d->tick);
+                set_int(L, "press_seq", d->press_seq);
+                set_int(L, "press_tick", d->press_tick);
+                set_bool(L, "press_locked", d->press_locked);
+                set_int(L, "press_window", d->press_window);
+                set_int(L, "hit_seq", d->hit_seq);
+                set_int(L, "hit_tick", d->hit_tick);
+                set_bool(L, "hit_eligible", d->hit_eligible);
+                set_bool(L, "hit_ok", d->hit_ok);
+                set_bool(L, "hit_noki", d->hit_noki);
+                set_int(L, "unlocked_seq", d->unlocked_seq);
+                set_int(L, "unlocked_tick", d->unlocked_tick);
+                lua_setfield(L, -2, names[k]);
+            }
+            lua_setfield(L, -2, "defence");
+        }
         set_num(L, "yaw", f->yaw);
         lua_createtable(L, s->count, 0);
         for (k = 0; k < s->count && k < FP_MEMBERS; k++) {

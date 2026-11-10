@@ -106,11 +106,11 @@ typedef struct {
     int cursor;                  /* 0x10C: row 0..3 */
     int timer;                   /* 0x110 */
     int unk114;
-    int items[12];               /* 0x118: item ids in list order (MAINMENU_ITEM_MAX: Tenkaichi Budokai Online too) */
-    int itemCount;               /* 0x148 */
-    int top;                     /* 0x14C: list index of the plate above the first row (a ring) */
+    int items[13];               /* 0x118: item ids in list order (MAINMENU_ITEM_MAX: the PC's two items too) */
+    int itemCount;               /* 0x14C */
+    int top;                     /* 0x150: list index of the plate above the first row (a ring) */
 } A11yMainMenu;
-LAYOUT_ASSERT(offsetof(A11yMainMenu, top) == 0x14C, "MainMenu");
+LAYOUT_ASSERT(offsetof(A11yMainMenu, top) == 0x150, "MainMenu");
 extern A11yMainMenu GAME_PTR gMainMenu;
 #define MAINMENU_CHOSEN 1
 #define MAINMENU_LEAVING 2
@@ -560,13 +560,13 @@ static void main_menu(void) {
         item = -1;
         return;
     }
-    if (m->itemCount < 1 || m->itemCount > 12 || m->top < 0 || m->cursor < 0 ||
+    if (m->itemCount < 1 || m->itemCount > 13 || m->top < 0 || m->cursor < 0 ||
         (m->flags & (MAINMENU_CHOSEN | MAINMENU_LEAVING))) {
         return;
     }
     index = (m->top + m->cursor + 1) % m->itemCount;
     cur = m->items[index];
-    if (cur < 0 || cur > 11) {
+    if (cur < 0 || cur > 12) {
         return;
     }
     if (!open) {
@@ -574,7 +574,8 @@ static void main_menu(void) {
         open = 1;
     }
     if (cur != item) {
-        say_item(cur == 11 ? "Tenkaichi Budokai Online" : tr(kMainMenuItems[cur]), index, m->itemCount, follow());
+        say_item(cur == 12 ? "Entrenamiento avanzado" : cur == 11 ? "Tenkaichi Budokai Online" : tr(kMainMenuItems[cur]),
+                 index, m->itemCount, follow());
         item = cur;
     }
 }

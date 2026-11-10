@@ -1363,6 +1363,10 @@ void BtlChar_AllocAll(s32 count) {
     /* F1 > Tech: the community's fixes of the game's mechanics (port/src/bt3_*.c), for this fight, as set when it
        starts; never online (both sides would have to agree: they keep the game's own rules) */
     Bt3Gameplay_EndMatch();
+    {   /* F1 > Tech > Defence drill (port/src/mods_game.c) */
+        extern void PortDrill_BeginMatch(int offline);
+        PortDrill_BeginMatch(!Port_NetSession() && !Port_NetActive() && !TagBattle_Active());
+    }
     if (!Port_NetSession() && !Port_NetActive() && !TagBattle_Active()) {
         struct Bt3GameplayRules rules = Bt3Gameplay_MakeRules(Port_Setting("tech_zcounter2", 0) != 0,
                                                               Port_Setting("tech_bombardment", 0) != 0, BT3_GAMEPLAY_OFFLINE);

@@ -2648,6 +2648,19 @@ static void tech_tab(void) {
     if(ImGui::Checkbox(f1_text("Bombardment fix"),&b)){Port_SettingSave("tech_bombardment",b);Port_SettingsWrite();}
     ImGui::SetItemTooltip("%s",f1_text("Keeps a valid chain of smash Ki blasts from stopping one frame too early."));
     ImGui::TextDisabled("BT3 PS2 Port Gameplay Source v0.3.1 | Z Counter 2 v0.9.0 | Bombardment v2.2");
+    ImGui::Separator();
+    // Defence drill (port/src/mods_game.c): the CPU attacks without a break; read when a fight starts.
+    bool drill=Port_Setting("train_drill",0)!=0;
+    if(ImGui::Checkbox("Entrenamiento de esquiva: la CPU ataca sin parar",&drill)){Port_SettingSave("train_drill",drill);Port_SettingsWrite();}
+    ImGui::SetItemTooltip("%s","Solo combates offline. Se aplica al empezar el siguiente combate. La CPU deja de defenderse y lanza ataques seguidos para practicar la esquiva con circulo (el mod Entrenador de defensa te dice si fue a tiempo).");
+    int mix=Port_Setting("train_drill_mix",0);
+    const char *mixes[]={"Cuerpo a cuerpo","Cuerpo a cuerpo y tecnicas","Solo tecnicas"};
+    if(mix<0||mix>2)mix=0;
+    if(ImGui::Combo("Ataques",&mix,mixes,3)){Port_SettingSave("train_drill_mix",mix);Port_SettingsWrite();}
+    int rest=Port_Setting("train_drill_rest",30);
+    if(ImGui::SliderInt("Pausa entre ataques (ticks)",&rest,10,90,"%d",ImGuiSliderFlags_AlwaysClamp))Port_SettingSave("train_drill_rest",rest);
+    if(ImGui::IsItemDeactivatedAfterEdit())Port_SettingsWrite();
+    ImGui::SetItemTooltip("%s","30 ticks = 1 segundo. Menos pausa = mas dificil.");
 }
 
 static void cheats_tab(void) {

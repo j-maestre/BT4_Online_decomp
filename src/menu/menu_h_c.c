@@ -95,6 +95,18 @@ s32 TrainMode_Main(void) {
             } else {
                 Adx_StopAll();
                 gProgress->mode = MODE_TRAIN_MENU;
+#ifdef PORT
+                {   /* left Advanced Training for this select (menu/port_advtrain.c): back there */
+                    extern int PortDrill_Forced(void);
+                    extern s32 gPortScreen;
+                    if (PortDrill_Forced()) {
+                        gPortScreen = 2; /* PORT_SCREEN_ADVTRAIN (menu/port_screen.h) */
+                        gProgress->mode = 80; /* MPROG_MODE_PORT_SCREEN */
+                        result = 0;
+                        done = 1;
+                    }
+                }
+#endif
             }
             break;
         }

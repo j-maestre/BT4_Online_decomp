@@ -1719,4 +1719,11 @@ void BtlMove_UpdateDefenseTimers(BtlMoveChr *chr) {
     if (BtlChar_TestFlag(chr, 0x80) && BtlMember_HasAbility(chr, 0x38)) {
         chr->unk106C = 1;
     }
+#ifdef PORT
+    {   /* Defence trainer (port/src/mods_game.c): read only, for script mods. */
+        extern void PortTrain_Timers(int side, int zcounter, int guard, int dodge, int rush, int unlocked);
+        PortTrain_Timers(chr->side, chr->unk1070, chr->unk106C, chr->unk1068, chr->unk107C,
+                         BtlInput_TestAction(chr, 0x27, 1) && !BtlChar_TestFlag(chr, 5));
+    }
+#endif
 }

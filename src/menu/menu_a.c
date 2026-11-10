@@ -73,8 +73,25 @@ static void PortMainMenu_OnlineLabel(void *arg,OnlineLabelProp *p){
     Ps_Sprite(arg?TBO_MAIN_ONLINE_ON:TBO_MAIN_ONLINE_OFF,Ps_Left()+x,y,Ps_Left()+x+512*sx*.9f,y+32*sy,0,0,1,1,PortMainMenu_LabelTint(p),alpha);
 }
 
+/* "Entrenamiento avanzado" (item 12), listed after Training: the port's screen of menu/port_advtrain.c. Its label is
+   drawn over the plate from the disc's letters (port/src/gs/gs_draw.c, TBO_MAIN_ADVTRAIN_*), as the online item's; its
+   icon is Training's; its line in the message window is one added to the screen's text (PortMainMenu_Descriptions). */
+static void PortMainMenu_AdvTrainLabel(void *arg,OnlineLabelProp *p){
+    s32 alpha=(s32)(p->mul[3]*128)+p->add[3];
+    f32 sx=p->m[0],sy=p->m[4],x=p->m[2],y=p->m[5];
+    if(p->flags&16){sx*=p->scaleX;sy*=p->scaleY;}
+    if(p->flags&2){x+=p->x;y+=p->y;}
+    if(p->flags&8)alpha=(s32)(alpha*p->alpha);
+    Ps_PageSet();Ps_SetShift(0);
+    Ps_Sprite(arg?TBO_MAIN_ADVTRAIN_ON:TBO_MAIN_ADVTRAIN_OFF,Ps_Left()+x,y,Ps_Left()+x+512*sx*.9f,y+32*sy,0,0,1,1,PortMainMenu_LabelTint(p),alpha);
+}
+
 #define MAINMENU_TBO 11
-#define MM_ICON(item) ((item) == MAINMENU_TBO ? 4 : (item)) /* whose icon an item shows */
+#define MAINMENU_ADVTRAIN 12
+#define MM_ICON(item) ((item) == MAINMENU_TBO ? 4 : (item) == MAINMENU_ADVTRAIN ? 6 : (item)) /* whose icon an item shows */
+/* the label drawn over a plate by the port (NULL: the plate's own) */
+#define MM_LABEL(item) ((item) == MAINMENU_TBO ? (void *)PortMainMenu_OnlineLabel : (item) == MAINMENU_ADVTRAIN ? (void *)PortMainMenu_AdvTrainLabel : NULL)
+#define MM_ROW(item) ((item) == MAINMENU_ADVTRAIN ? MAINMENU_TBO : (item)) /* (its own row would be past the sheet: not drawn) */
 
 /* A label sheet's pixels are stored the way the GS keeps 8-bit textures (in blocks): where pixel (x, y) is. */
 static s32 PortMainMenu_PixelAt(s32 x, s32 y) {
@@ -148,20 +165,35 @@ static const u16 sOnlineDescription0[]={65279,70,105,103,104,116,32,119,105,116,
 static const u16 sOnlineDescription1[]={65279,67,111,109,112,101,116,101,32,119,105,116,104,32,112,108,97,121,101,114,115,10,102,114,111,109,32,102,97,114,97,119,97,121,32,112,108,97,99,101,115,33,0};
 static const u16 sOnlineDescription2[]={65279,77,121,32,102,97,109,105,108,121,32,97,110,100,32,84,114,117,110,107,115,39,115,10,102,97,109,105,108,121,32,99,97,110,32,99,111,109,112,101,116,101,46,0};
 static const u16 sOnlineDescription3[]={65279,67,111,109,112,101,116,101,32,119,105,116,104,32,112,108,97,121,101,114,115,10,102,114,111,109,32,97,114,111,117,110,100,32,116,104,101,32,119,111,114,108,100,46,10,65,109,97,122,105,110,103,33,0};
+static s32 sAdvTrainLine=-1; /* the line of "Entrenamiento avanzado" in the message window's text, -1 none */
 static u32 *PortMainMenu_Descriptions(u32 *original){
     const u16 *replacement[4]={sOnlineDescription0,sOnlineDescription1,sOnlineDescription2,sOnlineDescription3};
-    s32 count=(s32)original[0],i,chars;u32 bytes,at;const u16 *text;u16 *to;
-    if(!Port_GameProfileEnglish()||count<36||count>256)return original;
-    bytes=(count+1)*4;
-    for(i=0;i<count;i++){
-        text=i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
+    static u16 adv[160];
+    const char *advUtf8=Port_GameProfileEnglish()?"Training modes of the PC: the CPU attacks without a break so you can practise your defence.":
+                        "Entrenamientos del PC: la CPU te ataca sin parar para que practiques la defensa (fium fium).";
+    s32 count=(s32)original[0],i,chars,english=Port_GameProfileEnglish(),total;u32 bytes,at;const u16 *text;u16 *to;
+    sAdvTrainLine=-1;
+    if(count<36||count>256)return original;
+    {   /* (UTF-8 to the game's 16-bit text; its font has the Spanish letters) */
+        const u8 *s=(const u8 *)advUtf8;s32 n=1;adv[0]=0xFEFF;
+        while(*s&&n<158){u32 c=*s++;
+            if(c>=0xC0&&c<0xE0&&*s)c=((c&0x1F)<<6)|(*s++&0x3F);
+            else if(c>=0xE0&&s[0]&&s[1]){c=((c&0x0F)<<12)|((s[0]&0x3F)<<6)|(s[1]&0x3F);s+=2;}
+            adv[n++]=(u16)c;}
+        adv[n]=0;
+    }
+    total=count+1;
+    bytes=(total+1)*4;
+    for(i=0;i<total;i++){
+        text=i==count?adv:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
         for(chars=0;text[chars];chars++);bytes+=((chars+1)*2+3)&~3;
     }
     sOnlineDescriptions=Heap_Alloc(bytes,0x20,0,2);
     if(!sOnlineDescriptions)return original;
-    memset(sOnlineDescriptions,0,bytes);sOnlineDescriptions[0]=count;at=(count+1)*4;
-    for(i=0;i<count;i++){
-        text=i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
+    memset(sOnlineDescriptions,0,bytes);sOnlineDescriptions[0]=total;at=(total+1)*4;
+    sAdvTrainLine=count;
+    for(i=0;i<total;i++){
+        text=i==count?adv:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
         sOnlineDescriptions[i+1]=at;to=(u16 *)((u8 *)sOnlineDescriptions+at);
         for(chars=0;text[chars];chars++)to[chars]=text[chars];to[chars]=0;
         at+=((chars+1)*2+3)&~3;
@@ -198,6 +230,7 @@ void MainMenu_Init(s32 section) {
     }
 #ifdef PORT
     gMainMenu = Heap_Alloc(sizeof(MainMenu), 0x20, 0, 2); /* (its item list is longer on the PC: MAINMENU_ITEM_MAX) */
+    { extern void PortDrill_Force(int on); PortDrill_Force(0); } /* (Advanced Training's drill ends here) */
     memset(gMainMenu, 0, sizeof(MainMenu));
 #else
     gMainMenu = Heap_Alloc(0x188, 0x20, 0, 2);
@@ -300,7 +333,7 @@ void MainMenu_Init(s32 section) {
         if (i == 4) {
             continue;
         }
-        if (i == MAINMENU_TBO) { /* (listed after Dragon Net Battle, below: not again at the end) */
+        if (i == MAINMENU_TBO || i == MAINMENU_ADVTRAIN) { /* (listed after Dragon Net Battle / Training, below) */
             continue;
         }
 #else
@@ -315,6 +348,9 @@ void MainMenu_Init(s32 section) {
 #ifdef PORT
         if (i == 3) {
             gMainMenu->items[gMainMenu->itemCount++] = MAINMENU_TBO;
+        }
+        if (i == 6) {
+            gMainMenu->items[gMainMenu->itemCount++] = MAINMENU_ADVTRAIN;
         }
 #endif
     }
@@ -428,17 +464,17 @@ void MainMenu_Draw(void) {
             item = gMainMenu->items[(gMainMenu->top + i) % gMainMenu->itemCount];
             uv.x0 = 0;
             uv.x1 = 0x200;
-            uv.y0 = (item % 8) * 0x20;
+            uv.y0 = (MM_ROW(item) % 8) * 0x20;
             uv.y1 = uv.y0 + 0x20;
             sprintf(name, "mc_menu_plate_%d", i + 1);
             Flash_FindLabel(flash, name, "mc_menu_text_off", &ref);
             Flash_ClipSetUv(flash, &ref, &uv);
-            Flash_ClipSetTex(flash, &ref, item / 8);
-            Flash_ClipSetCustomDraw(flash,&ref,item==MAINMENU_TBO?(void*)PortMainMenu_OnlineLabel:NULL,NULL);
+            Flash_ClipSetTex(flash, &ref, MM_ROW(item) / 8);
+            Flash_ClipSetCustomDraw(flash,&ref,MM_LABEL(item),NULL);
             Flash_FindLabel(flash, name, "mc_menu_text_on", &ref);
             Flash_ClipSetUv(flash, &ref, &uv);
-            Flash_ClipSetTex(flash, &ref, item / 8);
-            Flash_ClipSetCustomDraw(flash,&ref,item==MAINMENU_TBO?(void*)PortMainMenu_OnlineLabel:NULL,(void*)1);
+            Flash_ClipSetTex(flash, &ref, MM_ROW(item) / 8);
+            Flash_ClipSetCustomDraw(flash,&ref,MM_LABEL(item),(void*)1);
             uv.x0 = (MM_ICON(item) % 4) * 0x40;
             uv.y0 = (MM_ICON(item) / 4) * 0x40;
             uv.x1 = uv.x0 + 0x40;
@@ -463,16 +499,16 @@ void MainMenu_Draw(void) {
         item = gMainMenu->items[gMainMenu->extra];
         uv.x1 = 0x200;
         uv.x0 = 0;
-        uv.y0 = (item % 8) * 0x20;
+        uv.y0 = (MM_ROW(item) % 8) * 0x20;
         uv.y1 = uv.y0 + 0x20;
         Flash_FindLabel(flash, "mc_menu_plate_7", "mc_menu_text_off", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
-        Flash_ClipSetTex(flash, &ref, item / 8);
-            Flash_ClipSetCustomDraw(flash,&ref,item==MAINMENU_TBO?(void*)PortMainMenu_OnlineLabel:NULL,NULL);
+        Flash_ClipSetTex(flash, &ref, MM_ROW(item) / 8);
+            Flash_ClipSetCustomDraw(flash,&ref,MM_LABEL(item),NULL);
         Flash_FindLabel(flash, "mc_menu_plate_7", "mc_menu_text_on", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
-        Flash_ClipSetTex(flash, &ref, item / 8);
-            Flash_ClipSetCustomDraw(flash,&ref,item==MAINMENU_TBO?(void*)PortMainMenu_OnlineLabel:NULL,(void*)1);
+        Flash_ClipSetTex(flash, &ref, MM_ROW(item) / 8);
+            Flash_ClipSetCustomDraw(flash,&ref,MM_LABEL(item),(void*)1);
         uv.x0 = (MM_ICON(item) % 4) * 0x40;
         uv.y0 = (MM_ICON(item) / 4) * 0x40;
         uv.x1 = uv.x0 + 0x40;
@@ -528,7 +564,8 @@ void MainMenu_Draw(void) {
     }
     IconWin_Draw();
 #ifdef PORT
-    MsgWin_Draw(0, 0, MAINMENU_CUR(gMainMenu)==MAINMENU_TBO ? 0x20+gMainMenu->guide : gMainMenu->voiceLine);
+    MsgWin_Draw(0, 0, MAINMENU_CUR(gMainMenu)==MAINMENU_TBO ? 0x20+gMainMenu->guide :
+                      MAINMENU_CUR(gMainMenu)==MAINMENU_ADVTRAIN && sAdvTrainLine >= 0 ? sAdvTrainLine : gMainMenu->voiceLine);
 #else
     MsgWin_Draw(0, 0, gMainMenu->voiceLine);
 #endif
@@ -696,6 +733,11 @@ void MainMenu_Input(s32 *result) {
             MAINMENU_CHOOSE(70);
             break;
 #ifdef PORT
+        case MAINMENU_ADVTRAIN: /* "Entrenamiento avanzado": the port's screen mode (menu/port_advtrain.c) */
+            MAINMENU_COUNT();
+            gPortScreen = PORT_SCREEN_ADVTRAIN;
+            MAINMENU_CHOOSE(MPROG_MODE_PORT_SCREEN);
+            break;
         case MAINMENU_TBO: /* "Tenkaichi Budokai Online": the port's screen mode runs its screens (menu/port_tbo.c) */
             gPortScreen = PORT_SCREEN_TBO;
             MAINMENU_COUNT();

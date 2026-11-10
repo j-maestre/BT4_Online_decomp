@@ -536,6 +536,16 @@ s32 BtlHit_CheckDodge(HitChr *atk, HitChr *def) {
             on = 1;
         }
     }
+#ifdef PORT
+    {   /* Defence trainer (port/src/mods_game.c): read only. The first hit of a timed-evasion attack. */
+        extern void PortTrain_HitEx(int side, int kind, int eligible, int timer, int noKi);
+        u32 f = BtlAtk_GetFlags(atk);
+        if ((f & 1) && BtlHit_GetHitNo(atk) == 0) {
+            PortTrain_HitEx(def->side, 2, on, def->unk1068 - ((f & 0x4000000) ? 1 : 0),
+                            (f & 0x100000) && !BtlMember_HasKi(def, 5000));
+        }
+    }
+#endif
     if (on) {
         flags = BtlAtk_GetFlags(atk);
         done = 0;
@@ -687,6 +697,12 @@ s32 BtlHit_CheckGuard(HitChr *atk, HitChr *def, s32 *full) {
         return 0;
     }
     guard = BtlColl_GetGuardKind(def);
+#ifdef PORT
+    if (BtlChar_GetObj(atk)->hitNo == 0) { /* Defence trainer (port/src/mods_game.c): read only. */
+        extern void PortTrain_Hit(int side, int kind, int eligible, int timer);
+        PortTrain_Hit(def->side, 0, (BtlAnim_GetFlags(BtlAnim_GetId(def)) & 0x31) != 0, def->unk1070);
+    }
+#endif
     if (BtlChar_GetObj(atk)->hitNo == 0 && (BtlAnim_GetFlags(BtlAnim_GetId(def)) & 0x31) && def->unk1070 > 0) {
         BtlHit_ApplyGuard(atk, def, 8);
         *full = 0;
@@ -931,6 +947,14 @@ s32 BtlHit_CheckRush(void) {
             BtlChar_SetFlag(a, 0x129);
             continue;
         }
+#ifdef PORT
+        if (BtlChar_IsFree(b)) { /* Defence trainer (port/src/mods_game.c): read only. */
+            extern void PortTrain_HitEx(int side, int kind, int eligible, int timer, int noKi);
+            PortTrain_HitEx(b->side, 3, BtlChar_TestFlag(a, 0xA5) ? ((st & 0x31) && !BtlHit_IsFromBehind(a, b))
+                                                                  : ((st & 0xB1) && !BtlChar_TestFlag(b, 0x5A)),
+                            b->unk107C, 0);
+        }
+#endif
         if (BtlChar_IsFree(b) && b->unk107C > 0) {
             if (BtlChar_TestFlag(a, 0xA5)) {
                 if ((st & 0x31) && !BtlHit_IsFromBehind(a, b)) {

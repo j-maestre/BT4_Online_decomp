@@ -13,6 +13,16 @@ typedef struct ModsFighter {
     int found;
     float pos[3];  /* world position (the pose block, chr + 0x10); +Y is down */
     float yaw;     /* facing (radians) */
+    /* Defence trainer: [0] Z counter (fighter +0x1070), [1] circle evasion of techniques (+0x106C), [2] circle
+       evasion of melee hits (+0x1068), [3] circle evasion of rushing attacks (+0x107C). Ticks count this
+       fighter's own defence-timer updates (they stop while it is frozen). */
+    struct ModsDefence {
+        int tick;                          /* the fighter's tick now */
+        int press_seq, press_tick, press_locked, press_window; /* last press: locked = re-press that closed it */
+        int hit_seq, hit_tick, hit_eligible, hit_ok;           /* last hit that tested this defence */
+        int hit_noki;                      /* the evasion was in time but costs 5000 ki the fighter did not have */
+        int unlocked_seq, unlocked_tick;   /* circle pressed without lock-on: the game opens no window */
+    } def[4];
 } ModsFighter;
 
 typedef struct ModsGame {

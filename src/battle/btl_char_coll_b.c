@@ -1164,6 +1164,12 @@ s32 BtlColl_TryDodge(s32 objId, BtlCollHit *hit) {
         return 0;
     }
     if (canDodge) {
+#ifdef PORT
+    {   /* Defence trainer (port/src/mods_game.c): read only. */
+        extern void PortTrain_Hit(int side, int kind, int eligible, int timer);
+        PortTrain_Hit(chr->side, 1, 1, chr->unk106C);
+    }
+#endif
     ok = 0;
     free = 0;
     used = 0;

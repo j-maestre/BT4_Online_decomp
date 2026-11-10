@@ -722,6 +722,17 @@ void BtlCharApi_SetInjectedInput(s32 objId, u32 buttons, f32 stickX, f32 stickY)
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
+#ifdef PORT
+        {   /* F1 > Tech > Defence drill (port/src/mods_game.c): offline duels only, never in a replay */
+            extern int PortDrill_Active(void);
+            extern void PortDrill_Input(int objId, int close, unsigned *buttons, float *x, float *y);
+            if (PortDrill_Active() && !BattleReplay_IsActive()) {
+                unsigned b = buttons;
+                PortDrill_Input(objId, BtlChar_TestFlag(chr, 0x13) != 0, &b, &stickX, &stickY);
+                buttons = b;
+            }
+        }
+#endif
         chr->injectButtons = buttons;
         chr->injectStickX = stickX;
         chr->injectStickY = stickY;

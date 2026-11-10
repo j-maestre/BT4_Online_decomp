@@ -15,6 +15,7 @@
 
 extern s32 PortTbo_Run(void); /* menu/port_tbo.c: 1 = left for "Train While Waiting" (its fight is set up) */
 extern s32 TeamSel_TagRun(s32 section);
+extern s32 PortAdvTrain_Run(void); /* menu/port_advtrain.c: 1 = left for the training character select */
 
 s32 gPortScreen;
 
@@ -683,6 +684,13 @@ s32 PortScreen_Main(void) {
         Adx_StopAll();
         if(result==3){gProgress->mode=80;gPortScreen=PORT_SCREEN_TBO;}
         else gProgress->mode = result ? 45 : 4; /* training, or back to the main menu */
+        break;
+    case PORT_SCREEN_ADVTRAIN:
+        Bgm_Play(0x816 + 2);
+        result = PortAdvTrain_Run();
+        Adx_StopAll();
+        gProgress->mode = result ? 45 : 4; /* the training character select (TrainMode_Main), or the main menu */
+        result = 0;                         /* (no battle set up yet: the select does that) */
         break;
     default:
         gProgress->mode = 4;
