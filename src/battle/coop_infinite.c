@@ -179,6 +179,19 @@ void CoopRevive_Update(void) {
                 (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_REVIVE_AUTO")))
                 helped = 1; /* (the test variable: any partner revives from anywhere, as a CPU partner never holds guard) */
         }
+        {   extern s32 gPortResim;
+            static s32 logTick;
+            if (!gPortResim && ++logTick % 30 == 0) /* (a line a second: what the revive sees) */
+                for (h = 0; h < n; h++) {
+                    f32 q[4];
+                    if (h == d || TagBattle_Team(h) != 0) continue;
+                    BtlCharApi_GetPos(h, q);
+                    fprintf(stderr, "coop revive: down=%d progress=%d helper=%d hp=%d dist=%.0f guard=%d range=%.0f\n", d,
+                            sRevProgress[d], h, BtlCharApi_GetHp(h),
+                            (f32)__builtin_sqrtf((q[0] - pd[0]) * (q[0] - pd[0]) + (q[1] - pd[1]) * (q[1] - pd[1]) + (q[2] - pd[2]) * (q[2] - pd[2])),
+                            BtlInput_IsHeld(BtlChar_Get(h), 1), REVIVE_RANGE);
+                }
+        }
         if (helped) sRevProgress[d]++;
         else if (sRevProgress[d] > 0) sRevProgress[d] -= sRevProgress[d] > 1 ? 2 : 1; /* (it fades when let go) */
         if (sRevProgress[d] >= REVIVE_TICKS) {
