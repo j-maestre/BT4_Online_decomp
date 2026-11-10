@@ -27,7 +27,7 @@ template<class Json> bool decode(const std::string &envelope,uint64_t now,const 
  auto doc=Json::parse(envelope,nullptr,false);if(!doc.is_object()||doc.size()!=2||!doc.contains("payload")||!doc["payload"].is_string()||!doc.contains("signature")||!doc["signature"].is_string())return false;
  auto payload=doc["payload"].template get<std::string>(),signature=doc["signature"].template get<std::string>();
  if(payload.empty()||payload.size()>4096||signature.size()!=128)return false;
- uint8_t pub[32],sig[64];if(!Upd_HexBytes(PORT_UPDATE_KEY,pub,32)||!Upd_HexBytes(signature.c_str(),sig,64))return false;
+ uint8_t pub[32],sig[64];if(!Upd_HexBytes(PORT_ONLINE_ROUTE_KEY,pub,32)||!Upd_HexBytes(signature.c_str(),sig,64))return false;
  std::string message="BT4-ONLINE-ROUTE-V1\n"+payload;
  if(!UpdCrypto_Check(sig,pub,(const uint8_t*)message.data(),message.size()))return false;
  auto body=Json::parse(payload,nullptr,false);if(!body.is_object()||body.size()!=8)return false;
