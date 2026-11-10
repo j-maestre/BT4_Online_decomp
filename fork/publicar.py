@@ -16,7 +16,7 @@ Opciones:  --sin-compilar  usa port/build tal como esta (el numero de version ti
            --sin-subir     solo monta y firma el zip (en port/build/publicar/)
            --sin-instalar  no copia el ejecutable nuevo a BT4-entrenador
 """
-import argparse, base64, hashlib, json, os, pathlib, shutil, subprocess, sys, urllib.request, urllib.error, zipfile
+import argparse, json, os, pathlib, shutil, subprocess, sys, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DESK = ROOT.parent                                  # C:\Users\Xema\Desktop\BT4Online
@@ -90,15 +90,26 @@ def token():
 
 
 def api(method, url, tok, data=None, ctype="application/json"):
+    """HTTPS through Windows' own curl.exe (its certificate store: Python's alone sometimes fails on GitHub's chain).
+    The token goes in a temporary header file, never on the command line."""
+    import tempfile
     body = json.dumps(data).encode() if isinstance(data, dict) else data
-    req = urllib.request.Request(url, data=body, method=method, headers={
-        "Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json", "Content-Type": ctype,
-        "User-Agent": "bt4-fork-publisher"})
-    try:
-        with urllib.request.urlopen(req) as r:
-            return json.loads(r.read() or b"{}")
-    except urllib.error.HTTPError as e:
-        sys.exit(f"GitHub respondio {e.code}: {e.read().decode(errors='replace')[:400]}")
+    with tempfile.TemporaryDirectory() as tmp:
+        head = pathlib.Path(tmp) / "h.txt"
+        head.write_text(f"Authorization: Bearer {tok}\nAccept: application/vnd.github+json\n"
+                        f"Content-Type: {ctype}\nUser-Agent: bt4-fork-publisher\n")
+        cmd = [os.environ.get("SystemRoot", r"C:\Windows") + r"\System32\curl.exe", "-sS", "--retry", "3",
+               "-X", method, "-H", f"@{head}", "-w", "\n%{http_code}", url]
+        if body is not None:
+            src = pathlib.Path(tmp) / "body.bin"
+            src.write_bytes(body)
+            cmd += ["--data-binary", f"@{src}"]
+        r = subprocess.run(cmd, capture_output=True)
+    out = r.stdout.decode(errors="replace")
+    text, _, code = out.rpartition("\n")
+    if r.returncode or not code.startswith("2"):
+        sys.exit(f"GitHub respondio {code or r.returncode}: {(text or r.stderr.decode(errors='replace'))[:400]}")
+    return json.loads(text or "{}")
 
 
 def publish(version, notes, files):
