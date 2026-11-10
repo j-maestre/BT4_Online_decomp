@@ -475,7 +475,7 @@ static s32 sTbBgQueue;
 static s32 sTbBgFrames; /* how long it had been searching when the sparring fight began; the sign counts on from it */
 s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparring fight (its sign, its pause menu) */
 s32 gPortTboCoop;       /* Historia cooperativa (menu/port_coop.c): 1 make the chapter's room, 2 open Join by code */
-extern int PortCoop_Active(void),PortCoop_Time(void);
+extern int PortCoop_Active(void),PortCoop_Time(void),PortCoop_FoeCount(void);
 extern const char *PortCoop_TakeOutcome(void),*PortCoop_Title(void);
 extern char gPortCoopNote[160]; /* menu/port_coop.c: shown there when a room could not be made */
 static char sTbBgCode[CODE_LEN + 1];
@@ -1139,7 +1139,7 @@ static void Tb_CoopCreate(void){
     Port_TagCPUOptions(0,2);
     if(!Port_TagConnect(Port_TagEndpoint())){Tb_CoopFail(Port_TagError());return;}
     Port_TagModeOptions(0,0);sTb->tagQuick=0;sTb->tagQuickStarted=0;
-    Port_TagInitialTeams(2,2);
+    Port_TagInitialTeams(2,PortCoop_FoeCount());
     Port_TagOpen(5,PortCoop_Time(),0,Port_NetNameGet(),content);
     fprintf(stderr,"coop: room requested for the chapter\n");
     sTb->tagRoomCur=0;Tb_SetMode(TB_TAG_ROOM);
@@ -5006,7 +5006,7 @@ s32 PortTbo_Run(void) {
         if (sTbCoopWant && sTb->mode == TB_HUB) { /* Historia cooperativa: a plain page while the room is prepared */
             Ps_Rect(Ps_Left() - 200.0f, 0.0f, 712.0f, 448.0f, Ps_Rgba(0, 0, 0, 0x80), Ps_Rgba(0, 0, 0, 0x80));
             Ps_Align(1);
-            Ps_Text(256.0f, Ps_TextTop(224.0f, 0.7f), "Conectando con el servidor...", 0.7f, 400.0f, 0);
+            Ps_Text(256.0f, Ps_TextTop(224.0f, 0.7f), "Creando la sala...", 0.7f, 400.0f, 0);
             Ps_Align(0);
         } else if (sTb->mode == TB_HUB) Tb_DrawCommunityButton(live);
         else Ps_PromptsDraw();

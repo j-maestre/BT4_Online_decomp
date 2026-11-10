@@ -19,7 +19,31 @@ extern const char *Port_TagPlayerName(int seat), *Port_TagError(void);
 
 extern int Port_TagFreeForAll(void);
 extern int Port_TagTeam(int seat),Port_TagTeamIndex(int seat),Port_TagTeamCount(int team);
+extern void Port_TagHoverClear(void),Port_TagHoverSend(int seat,int col,int row);
+extern int Port_TagHover(int seat,int *col,int *row);
 static s32 sTagPage[2]={-1,-1};
+static s32 sTagHoverShown[2]={-1,-1};
+/* The other players' cursors (port/src/gs/tag_team_net.c, Port_TagHover): the cell a remote chooser is on, shown on
+   its team's grid with its face, as the turn start below shows one's own; `skip` is the seat this machine moves. */
+static void TeamSel_TagShowHover(s32 skip){
+    s32 t,w,col,row,slot;
+    for(t=0;t<2;++t){
+        TeamSelSide *side=gTeamSel->side[t];
+        for(w=0;w<Port_TagCapacity();++w)if(Port_TagTeam(w)==t&&!Port_TagConfirmed(w))break;
+        if(w>=Port_TagCapacity()||w==skip||w==Port_TagSeat()||Port_TagCPU(w)||!Port_TagHover(w,&col,&row)){sTagHoverShown[t]=-1;continue;}
+        if(col>=TS_COLS||row*TS_COLS+col>=gTeamSel->masterCount[t])continue;
+        slot=Port_TagTeamIndex(w)%5;
+        if(sTagHoverShown[t]==w&&side->member[slot].col==col&&side->member[slot].row==row)continue;
+        side->cur=slot;side->state=TEAMSEL_ST_GRID;
+        side->member[slot].col=col;side->member[slot].row=row;
+        TeamSel_SetChips(t);side->chara=side->chip[0][col];TeamSel_RequestFace(t);
+        if(sTagHoverShown[t]!=w){
+            Flash_GotoLabel(&gTeamSel->flash[t+1],"fl_out",1);Flash_GotoLabel(&gTeamSel->flash[t+3],"fl_in",1);
+            TeamSel_ClipGoto(t+3,t,TEAMSEL_CLIP_CHIP,"fl_on_start");
+        }
+        sTagHoverShown[t]=w;
+    }
+}
 static void TeamSel_TagSetRoster(void){
     s32 team,i,n,page,first;
     for(team=0;team<2;++team){
@@ -195,14 +219,14 @@ static s32 sTagCoopFailed=-1;
 static s32 TeamSel_TagCoopConfirm(s32 seat){
     s32 team=Port_TagTeam(seat),slot=Port_TagTeamIndex(seat)%5,i,j,index=0,id,color;
     TeamSelSide *side=gTeamSel->side[team];TsMember *m=&side->member[slot];
-    id=PortCoop_FoeChara(Port_TagTeamIndex(seat)%2);
+    id=PortCoop_FoeChara(Port_TagTeamIndex(seat));
     if(id<0)return 0;
     for(i=0;i<gTeamSel->masterCount[team];++i){ /* its cell, for the grid's cursor and face */
         TsCell *c=&gTeamSel->cells[team][i];s32 found=c->id==id;
         for(j=0;j<c->formCount && j<7;++j)if(c->form[j]==id)found=1;
         if(found){index=i;break;}
     }
-    color=PortCoop_FoeCostume(Port_TagTeamIndex(seat)%2);if(ChrTbl_WrapCostume(id,&color)<=0)color=0;
+    color=PortCoop_FoeCostume(Port_TagTeamIndex(seat));if(ChrTbl_WrapCostume(id,&color)<=0)color=0;
     m->chara=id;m->color=color;m->plate=0;m->form=0;
     m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
     TagBattle_SetDraftItems(seat,id,m->items.id);
@@ -251,7 +275,7 @@ s32 TeamSel_TagRun(s32 section){
     TsTeam saved[2];s32 oldPlayers=gTsProgress->players,oldType=gTsProgress->battleType;
     s32 seat=Port_TagSeat(),team=Port_TagTeam(seat),slot=Port_TagTeamIndex(seat)%5,lastSeat=-1;
     s32 i,localTurn=0,pending=0,result=1,exit=0,testFrames=0,startLocal=0,stageFrames=0,chosenStage=0,chosenBgm=2,keepRoom=0,mapPending=0;
-    sTagCoopFailed=-1;
+    sTagCoopFailed=-1;sTagHoverShown[0]=sTagHoverShown[1]=-1;Port_TagHoverClear();
     Pad savedPads[2];SaveData *savedSave;
     if(seat<0 || seat>=10 || Port_TagPhase()!=2)return 0;
     saved[0]=gTsProgress->team[0];saved[1]=gTsProgress->team[1];
@@ -318,6 +342,11 @@ s32 TeamSel_TagRun(s32 section){
                 Flash_GotoLabel(&gTeamSel->flash[team+1],"fl_out",1);Flash_GotoLabel(&gTeamSel->flash[team+3],"fl_in",1);
                 TeamSel_ClipGoto(team+3,team,TEAMSEL_CLIP_CHIP,"fl_on_start");
             }
+        }
+        if(!exit && Port_TagNetwork() && !sTagTransition && !(gTeamSel->flags&TEAMSEL_STAGE)){
+            if(ownTurn && !Port_TagCPU(seat) && gTeamSel->side[team]->state==TEAMSEL_ST_GRID) /* this machine's cursor, for the others */
+                Port_TagHoverSend(seat,gTeamSel->side[team]->member[slot].col,gTeamSel->side[team]->member[slot].row);
+            TeamSel_TagShowHover(ownTurn?seat:-1);
         }
         localTurn=ownTurn;canInput=ColorFade_IsInDone() && (gTeamSel->flash[0].flags&MFLASH_PAD);
         if(ownTurn && canInput && lastSeat!=seat){lastSeat=seat;sTagTurnStarted=Port_TagMenuMillis();sTagTurnSeconds=60;

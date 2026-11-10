@@ -662,6 +662,16 @@ void MainMenu_Input(s32 *result) {
             MAINMENU_CHOOSE(MPROG_MODE_PORT_SCREEN);
             return;
         }
+        {   /* (test only: BT4_RENDER_TEST + BT4_COOP_AUTOTEST go straight to the online screens once, for the Tag
+               Team regressions of BT4_TAG_CREATE_TEST) */
+            static s32 autotest;
+            if (!autotest && getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_AUTOTEST") && !(gMainMenu->flags & MAINMENU_LEAVING)) {
+                autotest = 1;
+                gPortScreen = PORT_SCREEN_TBO;
+                MAINMENU_CHOOSE(MPROG_MODE_PORT_SCREEN);
+                return;
+            }
+        }
     }
 #endif
     if (!(gMainMenu->flags & MAINMENU_STARTED)) {

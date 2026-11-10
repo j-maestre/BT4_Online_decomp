@@ -1259,6 +1259,14 @@ void BtlSeq_JudgeByHealth(BattleResult *result) {
  *   file is split, the call goes through a second declaration of the same symbol. */
 extern s32 BtlSeq_TickClocksExt(void) __asm__("BtlSeq_TickClocks");
 
+/* A Tag Team actor still in the fight: standing, or with a reserve member left to come in (Historia cooperativa's
+   reinforcements: a side with more than one member brings the next one in after a KO, as a team battle does). */
+extern u8 *BtlChar_Get(s32 side);
+extern s32 BtlMember_CountAlive(u8 *chr);
+static s32 TagSeq_InFight(s32 actor) {
+    return BtlCharApi_GetHp(actor) > 0 || BtlMember_CountAlive(BtlChar_Get(actor)) > 0;
+}
+
 s32 BtlSeq_CheckBattleEnd(void) {
     BattleResult *result = Battle_GetResult();
     s32 timeUp;
@@ -1275,7 +1283,7 @@ s32 BtlSeq_CheckBattleEnd(void) {
         }else{result->winner=0;result->reason=0;}
     }else if(TagBattle_Active() && (result->winner&3)){
         s32 a,alive[2]={0,0};
-        for(a=0;a<TagBattle_Count();++a)if(BtlCharApi_GetHp(a)>0)alive[TagBattle_Team(a)]++;
+        for(a=0;a<TagBattle_Count();++a)if(TagSeq_InFight(a))alive[TagBattle_Team(a)]++;
         if(alive[0] && alive[1]){result->winner=0;result->reason=0;}
     }
     if (result->winner & 0x1F) {
@@ -1311,7 +1319,8 @@ s32 BtlSeq_CheckBattleEnd(void) {
         s32 actor,alive[2]={0,0};
         result->health[0]=result->health[1]=0;
         for(actor=0;actor<TagBattle_Count();++actor){s32 hp=BtlCharApi_GetHp(actor);
-            if(hp>0){alive[TagBattle_Team(actor)]++;result->health[TagBattle_Team(actor)]+=hp;}}
+            if(hp>0)result->health[TagBattle_Team(actor)]+=hp;
+            if(TagSeq_InFight(actor))alive[TagBattle_Team(actor)]++;}
         if(timeUp){result->reason=BTL_REASON_TIME_UP;
             result->winner=result->health[0]>result->health[1]?BTL_RESULT_WIN_P1:result->health[1]>result->health[0]?BTL_RESULT_WIN_P2:BTL_RESULT_DRAW;return 1;}
         if(!alive[0]||!alive[1]){
@@ -1551,6 +1560,7 @@ s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
         extern void TagBattle_ResultBegin(void);
         extern void PortCoop_BattleEnded(int winner); /* Historia cooperativa (port/src/coop_story.c) */
         PortCoop_BattleEnded(Battle_GetResult()->winner);
+        fprintf(stderr,"tag battle over: winner=%d reason=%d\n",Battle_GetResult()->winner,Battle_GetResult()->reason);
         TagBattle_ResultBegin();ctx->step=2;return 1;
     }
     if (BattleResult_IsAborted()) {

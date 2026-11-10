@@ -247,7 +247,7 @@ s32 TagBattle_ConfigureLocal(void) {
         if(network&&getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_ONLINE_RESULT_TEST"))health=2.0f;
         {   /* Historia cooperativa (port/src/coop_story.c): a chapter's rival has its own health (a boss has more) */
             extern int PortCoop_Active(void),PortCoop_FoeHealth(int),Port_TagTeamIndex(int);
-            if(network&&PortCoop_Active()&&Port_TagCPU(i)&&Port_TagTeam(i)==1)health=(f32)PortCoop_FoeHealth(Port_TagTeamIndex(i)%2);
+            if(network&&PortCoop_Active()&&Port_TagCPU(i)&&Port_TagTeam(i)==1)health=(f32)PortCoop_FoeHealth(Port_TagTeamIndex(i));
         }
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_SPECTATOR_TEST") && i==0)health=1.0f;
         /* Hidden renderer regression: two low-health fighters let real CPU
@@ -259,6 +259,28 @@ s32 TagBattle_ConfigureLocal(void) {
         BattleSetup_SetSide(i,(Port_TagCPU(i)||(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_VIDEO_TEST")))?BTL_CONTROL_CPU:BTL_CONTROL_PAD,0,1,1,1,0,NULL);
         BattleSetup_SetMember(i,0,Port_TagPlayerChara(i),Port_TagPlayerCostume(i),0,levels[d],health,
                              TagBattle_GetDraftItems(i,Port_TagPlayerChara(i)));
+        {   /* Historia cooperativa: the chapter's reinforcements behind this rival; the battle brings the next one in
+               when it falls, as a team battle does (and src/battle/btl_seq.c does not end the fight while one is left) */
+            extern int PortCoop_Active(void),PortCoop_ReserveCount(int),PortCoop_Reserve(int,int,int*,int*,int*,int*),Port_TagTeamIndex(int);
+            extern s32 ChrTbl_WrapCostume(s32 chara,s32 *costume);
+            s32 k=Port_TagTeamIndex(i),n=network&&PortCoop_Active()&&Port_TagCPU(i)&&Port_TagTeam(i)==1?PortCoop_ReserveCount(k):0,j;
+            if(n>0){
+                BattleSetup_SetSide(i,BTL_CONTROL_CPU,0,1+n,1,1,0,NULL);
+                for(j=0;j<n;++j){s32 chara,costume,level,hp;
+                    if(!PortCoop_Reserve(k,j,&chara,&costume,&level,&hp))break;
+                    if(ChrTbl_WrapCostume(chara,&costume)<=0)costume=0;
+                    BattleSetup_SetMember(i,1+j,chara,costume,0,levels[level<0?0:level>4?4:level],(f32)hp,NULL);
+                }
+                fprintf(stderr,"coop: rival %d has %d reinforcements\n",i,n);
+            }
+        }
+        if(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_RESERVE_TEST")&&Port_TagCPU(i)&&Port_TagTeam(i)==1){ /* (test: a second member behind each rival) */
+            const char *list=getenv("BT4_COOP_RESERVE_TEST");s32 n=0;
+            while(*list&&n<4){BattleSetup_SetMember(i,1+n,atoi(list),0,0,levels[d],getenv("BT4_COOP_RESERVE_HP")?(f32)atoi(getenv("BT4_COOP_RESERVE_HP")):100.0f,NULL);++n;while(*list&&*list!=',')++list;if(*list==',')++list;}
+            BattleSetup_SetSide(i,BTL_CONTROL_CPU,0,1+n,1,1,0,NULL);
+            if(getenv("BT4_COOP_RESERVE_LOW"))BattleSetup_SetMember(i,0,Port_TagPlayerChara(i),Port_TagPlayerCostume(i),0,levels[d],1.0f,NULL);
+            fprintf(stderr,"coop reserve test: actor %d has a second member\n",i);
+        }
         sTagTargets[i]=TagBattle_FirstEnemy(i);
     }
     if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_KO_TEST") && getenv("BT4_TAG_KO_TEST")[0]=='e')sTagTargets[0]=3;

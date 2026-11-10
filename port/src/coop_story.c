@@ -21,12 +21,17 @@
 #define COOP_MAX 64
 #define COOP_FILE "historia_coop/capitulos.lua"
 
-typedef struct PortCoopFoe { int chara, costume, level, health; char name[40]; } PortCoopFoe;
+#define COOP_FOES 4        /* rivals on the field at once (the room: 2 players + these) */
+#define COOP_RESERVES 16   /* reinforcements: each comes in when a rival on the field falls */
+#define COOP_PER_ACTOR 4   /* behind one rival (a battle side has 5 member slots) */
+
+typedef struct PortCoopFoe { int chara, costume, level, health, behind; char name[40]; } PortCoopFoe;
 typedef struct PortCoopChapter {
     char id[32], saga[48], title[64], pair[64];
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
-    PortCoopFoe foe[2];
+    int foes, reserves;
+    PortCoopFoe foe[COOP_FOES], reserve[COOP_RESERVES];
 } PortCoopChapter;
 
 static PortCoopChapter sCh[COOP_MAX];
@@ -44,6 +49,29 @@ static void field_str(lua_State *L, const char *key, char *out, int cap) {
     out[0] = 0;
     if (lua_type(L, -1) == LUA_TSTRING) snprintf(out, cap, "%s", lua_tostring(L, -1));
     lua_pop(L, 1);
+}
+
+static int field_int(lua_State *L, const char *key, int def, int lo, int hi);
+
+/* A list of fighters { {personaje=..., traje=..., nivel=..., vida=..., nombre=...}, ... } under `key`; how many. */
+static int read_foes(lua_State *L, const char *key, PortCoopFoe *out, int max) {
+    int n = 0, k;
+    lua_getfield(L, -1, key);
+    for (k = 1; lua_istable(L, -1) && n < max; k++) {
+        PortCoopFoe *foe = &out[n];
+        lua_rawgeti(L, -1, k);
+        if (!lua_istable(L, -1)) { lua_pop(L, 1); break; }
+        foe->chara = field_int(L, "personaje", -1, -1, 511);
+        foe->costume = field_int(L, "traje", 0, 0, 9);
+        foe->level = field_int(L, "nivel", 2, 0, 4);
+        foe->health = field_int(L, "vida", 100, 10, 400);
+        foe->behind = field_int(L, "detras", 0, 0, 4) - 1; /* (reinforcements: which rival, 1-based; else in turns) */
+        field_str(L, "nombre", foe->name, sizeof(foe->name));
+        lua_pop(L, 1);
+        if (foe->chara >= 0) n++;
+    }
+    lua_pop(L, 1);
+    return n;
 }
 
 static int field_int(lua_State *L, const char *key, int def, int lo, int hi) {
@@ -117,28 +145,15 @@ int PortCoop_Load(void) {
         c->stage = field_int(L, "escenario", -1, -1, 0x62);
         c->bgm = field_int(L, "musica", -1, -1, 65535);
         c->time = field_int(L, "tiempo", 4, 0, 4);
-        lua_getfield(L, -1, "rivales");
-        for (k = 0; k < 2; k++) {
-            PortCoopFoe *foe = &c->foe[k];
-            foe->chara = -1; foe->costume = 0; foe->level = 2; foe->health = 100; foe->name[0] = 0;
-            if (lua_istable(L, -1)) {
-                lua_rawgeti(L, -1, k + 1);
-                if (lua_istable(L, -1)) {
-                    foe->chara = field_int(L, "personaje", -1, -1, 511);
-                    foe->costume = field_int(L, "traje", 0, 0, 9);
-                    foe->level = field_int(L, "nivel", 2, 0, 4);
-                    foe->health = field_int(L, "vida", 100, 10, 400);
-                    field_str(L, "nombre", foe->name, sizeof(foe->name));
-                }
-                lua_pop(L, 1);
-            }
-        }
-        lua_pop(L, 1);
+        c->foes = read_foes(L, "rivales", c->foe, COOP_FOES);
+        c->reserves = read_foes(L, "refuerzos", c->reserve, COOP_RESERVES);
+        for (k = 0; k < c->reserves; k++) /* behind which rival each reinforcement comes in */
+            if (c->reserve[k].behind < 0 || c->reserve[k].behind >= c->foes) c->reserve[k].behind = c->foes > 0 ? k % c->foes : 0;
         lua_pop(L, 1);
         if (!c->title[0]) snprintf(c->title, sizeof(c->title), "Capítulo %d", i);
         if (!c->id[0]) snprintf(c->id, sizeof(c->id), "cap%d", i);
-        if (c->foe[0].chara < 0 || c->foe[1].chara < 0) {
-            snprintf(sError, sizeof(sError), "El capítulo %d (%s) necesita dos rivales con «personaje».", i, c->title);
+        if (c->foes < 1) {
+            snprintf(sError, sizeof(sError), "El capítulo %d (%s) necesita al menos un rival con «personaje».", i, c->title);
             continue;
         }
         sCount++;
@@ -184,7 +199,32 @@ void PortCoop_Announced(const char *id) {
     fprintf(stderr, "coop: the host's chapter %s is not in this capitulos.lua\n", id);
 }
 
-static const PortCoopFoe *foe(int k) { return sSelected >= 0 && k >= 0 && k < 2 ? &sCh[sSelected].foe[k] : NULL; }
+static const PortCoopFoe *foe(int k) { return sSelected >= 0 && k >= 0 && k < sCh[sSelected].foes ? &sCh[sSelected].foe[k] : NULL; }
+int PortCoop_FoeCount(void) { return sSelected >= 0 ? sCh[sSelected].foes : 2; }
+
+/* The reinforcements behind rival k (they enter one after another when it falls): reinforcement r of the list goes
+   behind rival r % foes, so they come in turns. How many; the j-th through the pointers. */
+static int reserve_index(int k, int j) { /* the list index of the j-th reinforcement behind rival k, or -1 */
+    int r, n = 0;
+    if (sSelected < 0 || k < 0 || k >= sCh[sSelected].foes) return -1;
+    for (r = 0; r < sCh[sSelected].reserves; r++)
+        if (sCh[sSelected].reserve[r].behind == k && n++ == j) return n > COOP_PER_ACTOR ? -1 : r;
+    return -1;
+}
+int PortCoop_ReserveCount(int k) {
+    int n = 0;
+    while (reserve_index(k, n) >= 0) n++;
+    return n;
+}
+int PortCoop_Reserve(int k, int j, int *chara, int *costume, int *level, int *health) {
+    int r = reserve_index(k, j);
+    if (r < 0) return 0;
+    *chara = sCh[sSelected].reserve[r].chara;
+    *costume = sCh[sSelected].reserve[r].costume;
+    *level = sCh[sSelected].reserve[r].level;
+    *health = sCh[sSelected].reserve[r].health;
+    return 1;
+}
 int PortCoop_FoeChara(int k) { return foe(k) ? foe(k)->chara : -1; }
 int PortCoop_FoeCostume(int k) { return foe(k) ? foe(k)->costume : 0; }
 int PortCoop_FoeLevel(int k) { return foe(k) ? foe(k)->level : 2; }
@@ -237,7 +277,11 @@ const char *PortCoop_ChTitle(int i) { return ch(i) ? ch(i)->title : ""; }
 const char *PortCoop_ChSaga(int i) { return ch(i) ? ch(i)->saga : ""; }
 const char *PortCoop_ChPair(int i) { return ch(i) ? ch(i)->pair : ""; }
 const char *PortCoop_ChIntro(int i) { return ch(i) ? ch(i)->intro : ""; }
-const char *PortCoop_ChFoeName(int i, int k) { return ch(i) && k >= 0 && k < 2 ? ch(i)->foe[k].name : ""; }
-int PortCoop_ChFoeChara(int i, int k) { return ch(i) && k >= 0 && k < 2 ? ch(i)->foe[k].chara : -1; }
-int PortCoop_ChFoeLevel(int i, int k) { return ch(i) && k >= 0 && k < 2 ? ch(i)->foe[k].level : 2; }
-int PortCoop_ChFoeHealth(int i, int k) { return ch(i) && k >= 0 && k < 2 ? ch(i)->foe[k].health : 100; }
+const char *PortCoop_ChFoeName(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES ? ch(i)->foe[k].name : ""; }
+int PortCoop_ChFoeChara(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES ? ch(i)->foe[k].chara : -1; }
+int PortCoop_ChFoeLevel(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES ? ch(i)->foe[k].level : 2; }
+int PortCoop_ChFoeHealth(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES ? ch(i)->foe[k].health : 100; }
+int PortCoop_ChFoeCount(int i) { return ch(i) ? ch(i)->foes : 0; }
+int PortCoop_ChReserveCount(int i) { return ch(i) ? ch(i)->reserves : 0; }
+/* A chapter can be played once the one before it is won (the first always). */
+int PortCoop_Unlocked(int i) { return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1); }

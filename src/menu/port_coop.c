@@ -31,6 +31,7 @@ extern const char *PortCoop_Error(void);
 extern const char *PortCoop_ChTitle(int i), *PortCoop_ChSaga(int i), *PortCoop_ChPair(int i), *PortCoop_ChIntro(int i);
 extern const char *PortCoop_ChFoeName(int i, int k);
 extern int PortCoop_ChFoeChara(int i, int k), PortCoop_ChFoeLevel(int i, int k), PortCoop_ChFoeHealth(int i, int k);
+extern int PortCoop_ChFoeCount(int i), PortCoop_ChReserveCount(int i), PortCoop_Unlocked(int i);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
@@ -144,7 +145,9 @@ static void Co_ListUpdate(void) {
         if (sCo->cur < sCo->top) sCo->top = sCo->cur;
         if (sCo->cur >= sCo->top + CO_ROWS) sCo->top = sCo->cur - CO_ROWS + 1;
     }
-    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && count > 0) {
+    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && count > 0 && !PortCoop_Unlocked(sCo->cur)) {
+        Snd_PlaySe(1, 2); /* (locked: the one before it first) */
+    } else if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && count > 0) {
         Snd_PlaySe(1, 1);
         sCo->act = 0;
         Co_SetPage(CO_CHAPTER);
@@ -255,13 +258,16 @@ static void Co_Draw(void) {
             box = "Revisa historia_coop/capitulos.lua junto al juego. Cuadrado: leerlo otra vez.";
         } else {
             for (i = sCo->top; i < count && i < sCo->top + CO_ROWS; i++) {
-                char *value = PortCoop_Done(i) ? "Completado" : (char *)PortCoop_ChSaga(i);
-                Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), (char *)PortCoop_ChTitle(i), value,
-                       i == sCo->cur, PortCoop_Done(i) ? 5 : 3);
+                s32 open = PortCoop_Unlocked(i);
+                char *value = PortCoop_Done(i) ? "Completado" : open ? (char *)PortCoop_ChSaga(i) : "Bloqueado";
+                Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
+                       i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
             }
             if (sCo->top > 0) Ps_Text(220.0f + slide, 66.0f, "...", 0.5f, 40.0f, 4);
             if (sCo->top + CO_ROWS < count) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
-            box = "Elige un cap\303\255tulo. T\303\272 y un amigo contra dos rivales de la CPU. Cuadrado: volver a leer los cap\303\255tulos.";
+            box = PortCoop_Unlocked(sCo->cur)
+                ? "Elige un cap\303\255tulo. Cada uno que super\303\251is desbloquea el siguiente. Cuadrado: volver a leer los cap\303\255tulos."
+                : "Bloqueado: primero ten\303\251is que superar el cap\303\255tulo anterior.";
         }
     } else {
         s32 c = sCo->cur, k;
@@ -273,7 +279,7 @@ static void Co_Draw(void) {
             Ps_Cat(line, (char *)PortCoop_ChPair(c), 160);
             Ps_Text(50.0f + slide, 196.0f, line, 0.5f, 410.0f, 3);
         }
-        for (k = 0; k < 2; k++) {
+        for (k = 0; k < PortCoop_ChFoeCount(c) && k < 3; k++) {
             char num[48];
             if (PortCoop_ChFoeName(c, k)[0]) Ps_Copy(line, (char *)PortCoop_ChFoeName(c, k), 160);
             else { sprintf(num, "Personaje %d", PortCoop_ChFoeChara(c, k)); Ps_Copy(line, num, 160); }
@@ -282,7 +288,13 @@ static void Co_Draw(void) {
             Ps_Text(50.0f + slide, 216.0f + 18.0f * k, k == 0 ? "Rivales:" : "", 0.5f, 80.0f, 2);
             Ps_Text(120.0f + slide, 216.0f + 18.0f * k, line, 0.5f, 340.0f, 0);
         }
-        Co_Row(60.0f + slide, 300.0f + slide, 262.0f, "Crear sala", NULL, 1, 3);
+        {   char more[96];
+            if (PortCoop_ChReserveCount(c) > 0) {
+                sprintf(more, "+ %d refuerzos: entran cuando cae un rival", PortCoop_ChReserveCount(c));
+                Ps_Text(120.0f + slide, 216.0f + 18.0f * (PortCoop_ChFoeCount(c) < 3 ? PortCoop_ChFoeCount(c) : 3), more, 0.5f, 340.0f, 1);
+            }
+        }
+        Co_Row(60.0f + slide, 300.0f + slide, 296.0f, "Crear sala", NULL, 1, 3);
         box = "Crea la sala y dale el c\303\263digo a tu amigo: \303\251l solo tiene que elegir \"Unirse a una sala\".";
     }
     PortOnline_Raw(0);
