@@ -6,5 +6,5 @@
 #define PORT_RELEASE 139
 /* Repository used by the signed background updater (gs/net_update.c). A fork that publishes its own updates names
    its own repository here. */
-#define PORT_UPDATE_REPO "NauTaro/DBZ-BT4-Tag-Team-Decomp"
+#define PORT_UPDATE_REPO "j-maestre/BT4_Online_decomp"
 #endif

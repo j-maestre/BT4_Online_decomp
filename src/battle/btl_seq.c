@@ -1549,6 +1549,8 @@ s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     if(TagBattle_Active() && !BattleResult_IsAborted()){
         extern void TagBattle_ResultBegin(void);
+        extern void PortCoop_BattleEnded(int winner); /* Historia cooperativa (port/src/coop_story.c) */
+        PortCoop_BattleEnded(Battle_GetResult()->winner);
         TagBattle_ResultBegin();ctx->step=2;return 1;
     }
     if (BattleResult_IsAborted()) {

@@ -245,6 +245,10 @@ s32 TagBattle_ConfigureLocal(void) {
         s32 d=Port_TagDifficulty(i);if(d<0||d>4)d=2;
         f32 health=100.0f;
         if(network&&getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_ONLINE_RESULT_TEST"))health=2.0f;
+        {   /* Historia cooperativa (port/src/coop_story.c): a chapter's rival has its own health (a boss has more) */
+            extern int PortCoop_Active(void),PortCoop_FoeHealth(int),Port_TagTeamIndex(int);
+            if(network&&PortCoop_Active()&&Port_TagCPU(i)&&Port_TagTeam(i)==1)health=(f32)PortCoop_FoeHealth(Port_TagTeamIndex(i)%2);
+        }
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_SPECTATOR_TEST") && i==0)health=1.0f;
         /* Hidden renderer regression: two low-health fighters let real CPU
          * attacks exercise KO portraits, alive counts and automatic retargeting. */

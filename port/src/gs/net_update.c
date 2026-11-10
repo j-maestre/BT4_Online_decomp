@@ -1045,6 +1045,9 @@ static void path_of(char *out, size_t size, const char *rel, const char *suffix)
 static int new_bundled_mod(const char *rel) {
     char path[1024];
     SDL_PathInfo info;
+    if (strncmp(rel, "mods/entrenador_contra_z/", 25) == 0) { /* this fork's own mod: every release brings its newest */
+        return 1;
+    }
     if (strncmp(rel, "mods/", 5) != 0 || strchr(rel + 5, '/') == NULL) { /* (a mod's folder's files; not mods/README.txt) */
         return 0;
     }

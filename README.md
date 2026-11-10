@@ -1,3 +1,33 @@
+# BT4 Online: entrenador y Historia cooperativa
+
+Versión modificada de [DBZ BT4 Tag Team Decomp](https://github.com/NauTaro/DBZ-BT4-Tag-Team-Decomp) con:
+
+- **Entrenamiento avanzado → Entrenador de fium fium**: la CPU ataca sin parar y el panel dice si esquivaste a tiempo, antes o tarde, con tu racha.
+- **Entrenador de contra Z y fium fium** en cualquier combate (mod `entrenador_contra_z`).
+- **Historia cooperativa**: capítulos para dos jugadores online contra la CPU (`historia_coop/capitulos.lua`).
+- **Actualizaciones automáticas** desde las releases de este repositorio, firmadas.
+
+## Descargar y jugar
+
+1. Ve a [**Releases**](https://github.com/j-maestre/BT4_Online_decomp/releases/latest) y descarga `BT4decomp-windows-x64.zip`.
+2. Descomprímelo entero en una carpeta nueva.
+3. Abre `BT4decomp-setup.exe` y elige tu propia ISO de BT4 B14 Rev2 (SLUS-21978).
+4. Abre `BT4decomp.exe`. A partir de ahí se actualiza solo.
+
+No se distribuyen ISOs ni datos extraídos del juego.
+
+## Publicar una versión nueva (mantenedor)
+
+```
+python fork/publicar.py 1.0.1 "Qué cambia"
+```
+
+Compila con ese número de versión, monta el zip a partir de `fork/base/` (paquete oficial sin datos del disco), lo firma con la clave privada (fuera del repositorio) y crea la release. Detalles en [`fork/publicar.py`](fork/publicar.py).
+
+---
+
+*Lo que sigue es el README del proyecto original.*
+
 <div align="center">
   <img src="docs/presentation/bt4-intro-hq.gif" width="800" alt="Dragon Ball Z Budokai Tenkaichi 4 Tag Team opening animation">
   <h1>BT4decomp</h1>

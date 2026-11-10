@@ -177,7 +177,7 @@ extern MenuProgress *gProgress;
 /* ---- MainMenu (menu_a.c) ---- */
 
 #ifdef PORT
-#define MAINMENU_ITEM_MAX 13 /* PC: "Tenkaichi Budokai Online" (11) and "Entrenamiento avanzado" (12) are listed too */
+#define MAINMENU_ITEM_MAX 14 /* PC: "Tenkaichi Budokai Online" (11), "Entrenamiento avanzado" (12), "Historia cooperativa" (13) */
 #else
 #define MAINMENU_ITEM_MAX 11
 #endif

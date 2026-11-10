@@ -189,6 +189,34 @@ static s32 TeamSel_TagAutoConfirm(s32 seat){
     if(getenv("BT4_RENDER_TEST"))fprintf(stderr,"tag select: timeout seat=%d hovered=%d base=%d elapsed=%u\n",seat,hovered,id,Port_TagMenuMillis()-sTagTurnStarted);
     return 1;
 }
+/* Historia cooperativa (port/src/coop_story.c): the host confirms the chapter's fighter for a CPU seat. */
+extern int PortCoop_Active(void),PortCoop_FoeChara(int),PortCoop_FoeCostume(int),PortCoop_Stage(void),PortCoop_Bgm(void);
+static s32 sTagCoopFailed=-1;
+static s32 TeamSel_TagCoopConfirm(s32 seat){
+    s32 team=Port_TagTeam(seat),slot=Port_TagTeamIndex(seat)%5,i,j,index=0,id,color;
+    TeamSelSide *side=gTeamSel->side[team];TsMember *m=&side->member[slot];
+    id=PortCoop_FoeChara(Port_TagTeamIndex(seat)%2);
+    if(id<0)return 0;
+    for(i=0;i<gTeamSel->masterCount[team];++i){ /* its cell, for the grid's cursor and face */
+        TsCell *c=&gTeamSel->cells[team][i];s32 found=c->id==id;
+        for(j=0;j<c->formCount && j<7;++j)if(c->form[j]==id)found=1;
+        if(found){index=i;break;}
+    }
+    color=PortCoop_FoeCostume(Port_TagTeamIndex(seat)%2);if(ChrTbl_WrapCostume(id,&color)<=0)color=0;
+    m->chara=id;m->color=color;m->plate=0;m->form=0;
+    m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
+    TagBattle_SetDraftItems(seat,id,m->items.id);
+    Port_TagCommand(4,id,color);if(Port_TagError()[0])return 0;
+    side->flags&=~(TEAMSEL_SIDE_FORM|TEAMSEL_SIDE_CUSTOM|TEAMSEL_SIDE_PANEL);
+    ItemHelp_Close();ItemPanel_Hide(team);side->chara=id;
+    side->memberCount=slot+1;side->cur=side->memberCount;side->state=TEAMSEL_ST_TEAM;
+    TeamSel_RequestFace(team);TeamSel_SetTeamTex(team);
+    Flash_GotoLabel(&gTeamSel->flash[team+5],"fl_color_ok",1);
+    Flash_GotoLabel(&gTeamSel->flash[team+3],"fl_out",1);
+    Flash_GotoLabel(&gTeamSel->flash[team+1],"fl_in",1);Snd_PlaySe(1,1);
+    fprintf(stderr,"coop: chapter CPU seat=%d chara=%d costume=%d\n",seat,id,color);
+    return 1;
+}
 static void TeamSel_TagCaption(s32 seat,s32 pending){
     char line[128];s32 team,n,turn;
     extern int Port_MenusWide(void);
@@ -223,6 +251,7 @@ s32 TeamSel_TagRun(s32 section){
     TsTeam saved[2];s32 oldPlayers=gTsProgress->players,oldType=gTsProgress->battleType;
     s32 seat=Port_TagSeat(),team=Port_TagTeam(seat),slot=Port_TagTeamIndex(seat)%5,lastSeat=-1;
     s32 i,localTurn=0,pending=0,result=1,exit=0,testFrames=0,startLocal=0,stageFrames=0,chosenStage=0,chosenBgm=2,keepRoom=0,mapPending=0;
+    sTagCoopFailed=-1;
     Pad savedPads[2];SaveData *savedSave;
     if(seat<0 || seat>=10 || Port_TagPhase()!=2)return 0;
     saved[0]=gTsProgress->team[0];saved[1]=gTsProgress->team[1];
@@ -259,10 +288,21 @@ s32 TeamSel_TagRun(s32 section){
             TeamSel_TagSetRoster();
             if(pending && (Port_TagError()[0] || Port_TagConfirmed(seat)))pending=0;
             draft=Port_TagDraftSeat();
-            if(!sTagTransition && !(gTeamSel->flags&TEAMSEL_STAGE) && !mapPending && TeamSel_TagComplete())TeamSel_TagMapTransition();
+            if(!sTagTransition && !(gTeamSel->flags&TEAMSEL_STAGE) && !mapPending && TeamSel_TagComplete()){
+                if(PortCoop_Active()&&PortCoop_Stage()>=0&&Port_TagNetwork()){ /* Historia cooperativa: the chapter's stage */
+                    if(Port_TagHost()){chosenStage=PortCoop_Stage();chosenBgm=PortCoop_Bgm()>=0?PortCoop_Bgm():TS_RANDOM_BGM();
+                        Port_TagArena(chosenStage,chosenBgm,1);Port_TagCommand(5,0,0);
+                        fprintf(stderr,"coop: chapter stage=%d bgm=%d\n",chosenStage,chosenBgm);}
+                    mapPending=1;
+                }else TeamSel_TagMapTransition();
+            }
             ownTurn=!pending && !sTagTransition && !(gTeamSel->flags&TEAMSEL_STAGE) && draft>=0;
             if(ownTurn && draft!=seat){seat=draft;team=Port_TagTeam(seat);slot=Port_TagTeamIndex(seat)%5;localTurn=0;}
-            if(ownTurn && !localTurn){
+            if(ownTurn && !localTurn && Port_TagCPU(seat) && PortCoop_Active() && Port_TagNetwork() && seat!=sTagCoopFailed){
+                /* Historia cooperativa: the chapter's fighter at once (by hand if that fails) */
+                if(TeamSel_TagCoopConfirm(seat))pending=1;else sTagCoopFailed=seat;
+                ownTurn=0;
+            }else if(ownTurn && !localTurn){
                 TeamSelSide *side=gTeamSel->side[team];side->cur=slot;side->state=TEAMSEL_ST_GRID;
                 if(Port_TagCPU(seat)){
                     s32 cell;for(cell=0;cell<gTeamSel->masterCount[team];++cell){

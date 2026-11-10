@@ -16,6 +16,7 @@
 extern s32 PortTbo_Run(void); /* menu/port_tbo.c: 1 = left for "Train While Waiting" (its fight is set up) */
 extern s32 TeamSel_TagRun(s32 section);
 extern s32 PortAdvTrain_Run(void); /* menu/port_advtrain.c: 1 = left for the training character select */
+extern s32 PortCoop_Run(void);     /* menu/port_coop.c: 1 = left for the online screens (a room to make or join) */
 
 s32 gPortScreen;
 
@@ -684,6 +685,16 @@ s32 PortScreen_Main(void) {
         Adx_StopAll();
         if(result==3){gProgress->mode=80;gPortScreen=PORT_SCREEN_TBO;}
         else gProgress->mode = result ? 45 : 4; /* training, or back to the main menu */
+        { extern int PortCoop_Active(void);
+          if (!result && PortCoop_Active()) { gPortScreen = PORT_SCREEN_COOP; gProgress->mode = 80; } } /* (Historia cooperativa) */
+        break;
+    case PORT_SCREEN_COOP:
+        Bgm_Play(0x816 + 2);
+        result = PortCoop_Run();
+        Adx_StopAll();
+        if (result) { gPortScreen = PORT_SCREEN_TBO; gProgress->mode = 80; } /* the room, on the online screens */
+        else gProgress->mode = 4;
+        result = 0;
         break;
     case PORT_SCREEN_ADVTRAIN:
         Bgm_Play(0x816 + 2);

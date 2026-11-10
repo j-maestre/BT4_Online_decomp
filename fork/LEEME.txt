@@ -1,0 +1,31 @@
+BT4 Online - Entrenador y Historia cooperativa (Windows, 64 bits)
+Basado en DBZ BT4 Tag Team Decomp (BT4 B14 Rev2).
+
+INSTALACIÓN (solo la primera vez)
+1. Descomprime TODO el zip en una carpeta nueva (por ejemplo Escritorio\BT4 Online).
+2. Abre  BT4decomp-setup.exe
+3. Elige el idioma y selecciona tu ISO de BT4 B14 Rev2 (Latino o inglés, SLUS-21978).
+4. Cuando termine, abre  BT4decomp.exe  y a jugar.
+
+ACTUALIZACIONES
+No tienes que hacer nada. Al abrir el juego comprueba si hay una versión nueva en
+https://github.com/j-maestre/BT4_Online_decomp , la descarga mientras juegas, comprueba
+su firma y se instala sola al volver al menú principal (nunca en mitad de una partida
+online). Tus partidas, ajustes y datos de la ISO no se tocan nunca.
+
+QUÉ AÑADE ESTA VERSIÓN
+- Menú principal > Entrenamiento avanzado > Entrenador de fium fium: la CPU ataca sin
+  parar y el panel te dice si esquivaste a tiempo, antes o tarde, con tu racha.
+- Entrenador de contra Z y fium fium en cualquier combate (mod entrenador_contra_z, F1 > Mods).
+- Menú principal > Historia cooperativa: capítulos de historia para dos jugadores online
+  contra la CPU. Uno crea la sala del capítulo y el otro elige el MISMO capítulo y
+  "Unirse con código". Los capítulos están en historia_coop\capitulos.lua.
+
+El online normal funciona igual que en el juego oficial.
+
+Este paquete no contiene la ISO ni datos extraídos del juego: el setup lee tu propia ISO.
+Partidas guardadas en saves\. F1 abre los ajustes de vídeo, sonido y controles.
+
+Código fuente (AGPL): https://github.com/j-maestre/BT4_Online_decomp
+Proyecto original: https://github.com/NauTaro/DBZ-BT4-Tag-Team-Decomp
+Licencias en licenses\.

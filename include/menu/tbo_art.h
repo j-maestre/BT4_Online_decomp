@@ -37,6 +37,8 @@
 #define TBO_MAIN_ONLINE_ON (TBO_ART_COUNT + 17)
 #define TBO_MAIN_ADVTRAIN_OFF (TBO_ART_COUNT + 18) /* "Entrenamiento avanzado" in the disc's lettering */
 #define TBO_MAIN_ADVTRAIN_ON (TBO_ART_COUNT + 19)
+#define TBO_MAIN_COOP_OFF (TBO_ART_COUNT + 20) /* "Historia cooperativa" */
+#define TBO_MAIN_COOP_ON (TBO_ART_COUNT + 21)
 
 #define TBO_ART_ENUM(id, name) id,
 enum { TBO_ART_LIST(TBO_ART_ENUM) TBO_ART_COUNT };

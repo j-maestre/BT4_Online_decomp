@@ -474,6 +474,9 @@ static s32 sTbBgKind;  /* what the search left open for "Train While Waiting" is
 static s32 sTbBgQueue;
 static s32 sTbBgFrames; /* how long it had been searching when the sparring fight began; the sign counts on from it */
 s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparring fight (its sign, its pause menu) */
+s32 gPortTboCoop;       /* Historia cooperativa (menu/port_coop.c): 1 make the chapter's room, 2 open Join by code */
+extern int PortCoop_Active(void),PortCoop_Time(void);
+extern const char *PortCoop_TakeOutcome(void),*PortCoop_Title(void);
 static char sTbBgCode[CODE_LEN + 1];
 static f32 Tb_Beat(s32 period);
 /* A format with a number in it ("%d FRAME") in the chosen language, for sprintf (the translation file's line keeps
@@ -1123,12 +1126,39 @@ static void Tb_TagUpdate(s32 live){
     Port_SettingSave("tag_team_difficulty",sTb->tagDifficulty);Port_SettingsWrite();sTb->tagRoomCur=0;
     Tb_SetMode(TB_TAG_ROOM);
 }
+static void Tb_CoopCreate(void){
+    unsigned long long content=0;
+    if(!Tb_Vanilla(0)||Port_TagDataFingerprint(&content)!=1)return;
+    Port_TagCPUOptions(0,2);
+    if(!Port_TagConnect(Port_TagEndpoint())){Tb_Note((char*)Port_TagError());return;}
+    Port_TagModeOptions(0,0);sTb->tagQuick=0;sTb->tagQuickStarted=0;
+    Port_TagInitialTeams(2,2);
+    Port_TagOpen(5,PortCoop_Time(),0,Port_NetNameGet(),content);
+    fprintf(stderr,"coop: room requested for the chapter\n");
+    sTb->tagRoomCur=0;Tb_SetMode(TB_TAG_ROOM);
+}
+/* the chapter's room (or Join by code) waits for the service to know the nickname: rooms are refused without one */
+static s32 sTbCoopWant;
+static void Tb_CoopPending(s32 live){
+    s32 what=sTbCoopWant;
+    if(!what||!live||sTb->mode!=TB_HUB)return; /* (asked for a nickname: Tb_NicknameUpdate opened its page; back here once saved) */
+    if(sTb->nicknameState!=BT4_NICKNAME_READY&&sTb->nicknameState!=BT4_NICKNAME_OPTIONAL&&
+       sTb->nicknameState!=BT4_NICKNAME_DISABLED){
+        if(sTb->nicknameState==BT4_NICKNAME_UNAVAILABLE){sTbCoopWant=0;Port_OnlineNicknameBegin();
+            Tb_Note("No se pudo comprobar tu apodo online. Vuelve a intentarlo.");}
+        return;
+    }
+    sTbCoopWant=0;
+    if(what==1)Tb_CoopCreate();
+    else{sTb->tagJoin=1;sTb->code[0]=0;sTb->codeLen=sTb->keyCol=sTb->keyRow=0;Tb_SetMode(TB_JOIN);}
+}
 static void Tb_TagRoomUpdate(s32 live){
     Pad *pad=&gPad[0];s32 dir,local=!strcmp(Port_TagCode(),"LOCAL0");
     Port_TagPoll();
+    {const char *outcome=PortCoop_TakeOutcome();if(outcome)Tb_Say(outcome);} /* a chapter's closing or defeat line */
     if(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6)){
         char why[128];Ps_Copy(why,(char*)Port_TagError(),128);Port_TagClose();
-        sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(sTb->tagJoin?TB_JOIN:TB_TAG);Tb_Note(why);return;
+        sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(sTb->tagJoin?TB_JOIN:PortCoop_Active()?TB_HUB:TB_TAG);Tb_Note(why);return;
     }
     if(sTb->tagQuick&&Port_TagPhase()<1){
         Ps_Prompt(2,"Cancel");
@@ -1207,7 +1237,9 @@ static void Tb_TagRoomUpdate(s32 live){
     if(Port_TagError()[0])Tb_Note((char*)Port_TagError());
     if((pad->gamePressed&(PADG_SQUARE|PADG_START))&&Port_TagHost()){
         if(Port_TagCanStart())Port_TagCommand(3,0,0);else Tb_Note("EACH TEAM NEEDS AT LEAST ONE FIGHTER.");}
-    if(pad->gamePressed&PADG_TRIANGLE){if(sTb->tagMoving>=0){sTb->tagMoving=-1;return;}Port_TagClose();sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(TB_TAG);}
+    if(pad->gamePressed&PADG_TRIANGLE){if(sTb->tagMoving>=0){sTb->tagMoving=-1;return;}Port_TagClose();
+        if(PortCoop_Active()){sTb->leaving=1;ColorFade_StartOut(0,0,0,0x14);return;} /* Historia cooperativa: back to its chapters */
+        sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(TB_TAG);}
 }
 /* ---------------------------------------------------------------------------------------------- the hub */
 static void Tb_OpenName(s32 required) {
@@ -1563,7 +1595,8 @@ static void Tb_JoinUpdate(s32 live) {
             return;
         } else if (c == 27) { /* Esc: back, as triangle */
             Snd_PlaySe(1, 2);
-            Tb_SetMode(sTb->tagJoin ? TB_TAG : TB_HUB);
+            if(sTb->tagJoin&&PortCoop_Active()){sTb->leaving=1;ColorFade_StartOut(0,0,0,0x14);} /* Historia cooperativa: back to its chapters */
+            else Tb_SetMode(sTb->tagJoin ? TB_TAG : TB_HUB);
             return;
         } else if (c == 8) {
             Tb_CodeBack();
@@ -1597,7 +1630,8 @@ static void Tb_JoinUpdate(s32 live) {
         Tb_CodeBack();
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
-        Tb_SetMode(sTb->tagJoin ? TB_TAG : TB_HUB);
+        if(sTb->tagJoin&&PortCoop_Active()){sTb->leaving=1;ColorFade_StartOut(0,0,0,0x14);} /* Historia cooperativa: back to its chapters */
+            else Tb_SetMode(sTb->tagJoin ? TB_TAG : TB_HUB);
     }
 }
 
@@ -4617,6 +4651,7 @@ static void Tb_Draw(void) {
 static void Tb_DrawText(void) {
     char **title = sTbTitle;
     const char *heading=title[sTb->mode];
+    if(sTb->mode==TB_TAG_ROOM&&PortCoop_Active()&&PortCoop_Title())heading=PortCoop_Title(); /* Historia cooperativa */
     if(sTb->mode==TB_WAIT&&!sTb->found&&sTb->host!=2)heading=sTb->host?"Room Open":"Joining Room";
     if(sTb->mode==TB_TAG_ROOM&&sTb->tagQuick&&Port_TagPhase()<2)heading="Quick Match";
 
@@ -4779,6 +4814,11 @@ s32 PortTbo_Run(void) {
     }
     Port_EscQuit(0);
     Tb_WinInit();
+    if(gPortTboCoop){ /* Historia cooperativa (menu/port_coop.c): done once the online nickname is known (Tb_CoopPending) */
+        sTbCoopWant=gPortTboCoop;
+        gPortTboCoop=0;
+        Tb_Note("Comprobando tu apodo online...");
+    }
     if (getenv("BT4_RENDER_TBO") != NULL) {
         const char *which = getenv("BT4_RENDER_TBO");
         if(!strcmp(which,"tag-quick-wait")&&getenv("BT4_RENDER_TEST")){sTb->tagQuick=4;Tb_SetMode(TB_TAG_ROOM);}
@@ -4861,6 +4901,7 @@ s32 PortTbo_Run(void) {
         }
         if(!getenv("BT4_RENDER_TEST")){
             if(sTb->mode==TB_HUB||sTb->mode==TB_NAME||sTb->mode==TB_PROFILE||sTb->mode==TB_RANKED)Tb_NicknameUpdate(live);
+            Tb_CoopPending(live);
             if(sTb->mode==TB_HUB||sTb->mode==TB_RANKED)Port_RankedRefresh(sTb->mode==TB_RANKED&&!sTb->rankedPage);
         }
         if(getenv("BT4_RENDER_TEST")&&getenv("BT4_TBO_TEXT_CAPTURE")&&sTb->frames==90){

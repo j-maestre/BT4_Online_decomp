@@ -86,12 +86,24 @@ static void PortMainMenu_AdvTrainLabel(void *arg,OnlineLabelProp *p){
     Ps_Sprite(arg?TBO_MAIN_ADVTRAIN_ON:TBO_MAIN_ADVTRAIN_OFF,Ps_Left()+x,y,Ps_Left()+x+512*sx*.9f,y+32*sy,0,0,1,1,PortMainMenu_LabelTint(p),alpha);
 }
 
+static void PortMainMenu_CoopLabel(void *arg,OnlineLabelProp *p){ /* "Historia cooperativa": as Advanced Training's */
+    s32 alpha=(s32)(p->mul[3]*128)+p->add[3];
+    f32 sx=p->m[0],sy=p->m[4],x=p->m[2],y=p->m[5];
+    if(p->flags&16){sx*=p->scaleX;sy*=p->scaleY;}
+    if(p->flags&2){x+=p->x;y+=p->y;}
+    if(p->flags&8)alpha=(s32)(alpha*p->alpha);
+    Ps_PageSet();Ps_SetShift(0);
+    Ps_Sprite(arg?TBO_MAIN_COOP_ON:TBO_MAIN_COOP_OFF,Ps_Left()+x,y,Ps_Left()+x+512*sx*.9f,y+32*sy,0,0,1,1,PortMainMenu_LabelTint(p),alpha);
+}
+
 #define MAINMENU_TBO 11
 #define MAINMENU_ADVTRAIN 12
-#define MM_ICON(item) ((item) == MAINMENU_TBO ? 4 : (item) == MAINMENU_ADVTRAIN ? 6 : (item)) /* whose icon an item shows */
+#define MAINMENU_COOP 13 /* "Historia cooperativa" (menu/port_coop.c), after the story mode; its icon is the story's */
+#define MM_ICON(item) ((item) == MAINMENU_TBO ? 4 : (item) == MAINMENU_ADVTRAIN ? 6 : (item) == MAINMENU_COOP ? 0 : (item)) /* whose icon an item shows */
 /* the label drawn over a plate by the port (NULL: the plate's own) */
-#define MM_LABEL(item) ((item) == MAINMENU_TBO ? (void *)PortMainMenu_OnlineLabel : (item) == MAINMENU_ADVTRAIN ? (void *)PortMainMenu_AdvTrainLabel : NULL)
-#define MM_ROW(item) ((item) == MAINMENU_ADVTRAIN ? MAINMENU_TBO : (item)) /* (its own row would be past the sheet: not drawn) */
+#define MM_LABEL(item) ((item) == MAINMENU_TBO ? (void *)PortMainMenu_OnlineLabel : (item) == MAINMENU_ADVTRAIN ? (void *)PortMainMenu_AdvTrainLabel : \
+                        (item) == MAINMENU_COOP ? (void *)PortMainMenu_CoopLabel : NULL)
+#define MM_ROW(item) ((item) >= MAINMENU_ADVTRAIN ? MAINMENU_TBO : (item)) /* (their own rows would be past the sheet: not drawn) */
 
 /* A label sheet's pixels are stored the way the GS keeps 8-bit textures (in blocks): where pixel (x, y) is. */
 static s32 PortMainMenu_PixelAt(s32 x, s32 y) {
@@ -168,9 +180,11 @@ static const u16 sOnlineDescription3[]={65279,67,111,109,112,101,116,101,32,119,
 static s32 sAdvTrainLine=-1; /* the line of "Entrenamiento avanzado" in the message window's text, -1 none */
 static u32 *PortMainMenu_Descriptions(u32 *original){
     const u16 *replacement[4]={sOnlineDescription0,sOnlineDescription1,sOnlineDescription2,sOnlineDescription3};
-    static u16 adv[160];
+    static u16 adv[160],coop[160];
     const char *advUtf8=Port_GameProfileEnglish()?"Training modes of the PC: the CPU attacks without a break so you can practise your defence.":
                         "Entrenamientos del PC: la CPU te ataca sin parar para que practiques la defensa (fium fium).";
+    const char *coopUtf8=Port_GameProfileEnglish()?"Two players online against the CPU: chapters of the story for you and a friend.":
+                         "Dos jugadores online contra la CPU: cap\303\255tulos de la historia para ti y un amigo.";
     s32 count=(s32)original[0],i,chars,english=Port_GameProfileEnglish(),total;u32 bytes,at;const u16 *text;u16 *to;
     sAdvTrainLine=-1;
     if(count<36||count>256)return original;
@@ -181,11 +195,17 @@ static u32 *PortMainMenu_Descriptions(u32 *original){
             else if(c>=0xE0&&s[0]&&s[1]){c=((c&0x0F)<<12)|((s[0]&0x3F)<<6)|(s[1]&0x3F);s+=2;}
             adv[n++]=(u16)c;}
         adv[n]=0;
+        s=(const u8 *)coopUtf8;n=1;coop[0]=0xFEFF;
+        while(*s&&n<158){u32 c=*s++;
+            if(c>=0xC0&&c<0xE0&&*s)c=((c&0x1F)<<6)|(*s++&0x3F);
+            else if(c>=0xE0&&s[0]&&s[1]){c=((c&0x0F)<<12)|((s[0]&0x3F)<<6)|(s[1]&0x3F);s+=2;}
+            coop[n++]=(u16)c;}
+        coop[n]=0;
     }
-    total=count+1;
+    total=count+2;
     bytes=(total+1)*4;
     for(i=0;i<total;i++){
-        text=i==count?adv:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
+        text=i==count?adv:i==count+1?coop:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
         for(chars=0;text[chars];chars++);bytes+=((chars+1)*2+3)&~3;
     }
     sOnlineDescriptions=Heap_Alloc(bytes,0x20,0,2);
@@ -193,7 +213,7 @@ static u32 *PortMainMenu_Descriptions(u32 *original){
     memset(sOnlineDescriptions,0,bytes);sOnlineDescriptions[0]=total;at=(total+1)*4;
     sAdvTrainLine=count;
     for(i=0;i<total;i++){
-        text=i==count?adv:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
+        text=i==count?adv:i==count+1?coop:english&&i>=32&&i<36?replacement[i-32]:(u16 *)((u8 *)original+(original[i+1]&~3));
         sOnlineDescriptions[i+1]=at;to=(u16 *)((u8 *)sOnlineDescriptions+at);
         for(chars=0;text[chars];chars++)to[chars]=text[chars];to[chars]=0;
         at+=((chars+1)*2+3)&~3;
@@ -231,6 +251,7 @@ void MainMenu_Init(s32 section) {
 #ifdef PORT
     gMainMenu = Heap_Alloc(sizeof(MainMenu), 0x20, 0, 2); /* (its item list is longer on the PC: MAINMENU_ITEM_MAX) */
     { extern void PortDrill_Force(int on); PortDrill_Force(0); } /* (Advanced Training's drill ends here) */
+    { extern void PortCoop_Select(int i); PortCoop_Select(-1); } /* (and the co-op story's chapter: rooms are ordinary again) */
     memset(gMainMenu, 0, sizeof(MainMenu));
 #else
     gMainMenu = Heap_Alloc(0x188, 0x20, 0, 2);
@@ -333,7 +354,7 @@ void MainMenu_Init(s32 section) {
         if (i == 4) {
             continue;
         }
-        if (i == MAINMENU_TBO || i == MAINMENU_ADVTRAIN) { /* (listed after Dragon Net Battle / Training, below) */
+        if (i == MAINMENU_TBO || i == MAINMENU_ADVTRAIN || i == MAINMENU_COOP) { /* (listed after other items, below) */
             continue;
         }
 #else
@@ -346,6 +367,9 @@ void MainMenu_Init(s32 section) {
         }
         gMainMenu->items[gMainMenu->itemCount++] = i;
 #ifdef PORT
+        if (i == 0) {
+            gMainMenu->items[gMainMenu->itemCount++] = MAINMENU_COOP;
+        }
         if (i == 3) {
             gMainMenu->items[gMainMenu->itemCount++] = MAINMENU_TBO;
         }
@@ -565,7 +589,8 @@ void MainMenu_Draw(void) {
     IconWin_Draw();
 #ifdef PORT
     MsgWin_Draw(0, 0, MAINMENU_CUR(gMainMenu)==MAINMENU_TBO ? 0x20+gMainMenu->guide :
-                      MAINMENU_CUR(gMainMenu)==MAINMENU_ADVTRAIN && sAdvTrainLine >= 0 ? sAdvTrainLine : gMainMenu->voiceLine);
+                      MAINMENU_CUR(gMainMenu)==MAINMENU_ADVTRAIN && sAdvTrainLine >= 0 ? sAdvTrainLine :
+                      MAINMENU_CUR(gMainMenu)==MAINMENU_COOP && sAdvTrainLine >= 0 ? sAdvTrainLine + 1 : gMainMenu->voiceLine);
 #else
     MsgWin_Draw(0, 0, gMainMenu->voiceLine);
 #endif
@@ -733,6 +758,11 @@ void MainMenu_Input(s32 *result) {
             MAINMENU_CHOOSE(70);
             break;
 #ifdef PORT
+        case MAINMENU_COOP: /* "Historia cooperativa": the port's screen mode (menu/port_coop.c) */
+            MAINMENU_COUNT();
+            gPortScreen = PORT_SCREEN_COOP;
+            MAINMENU_CHOOSE(MPROG_MODE_PORT_SCREEN);
+            break;
         case MAINMENU_ADVTRAIN: /* "Entrenamiento avanzado": the port's screen mode (menu/port_advtrain.c) */
             MAINMENU_COUNT();
             gPortScreen = PORT_SCREEN_ADVTRAIN;

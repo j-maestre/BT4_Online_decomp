@@ -447,6 +447,26 @@ int Port_TagDraftPending(void){return cancel_pending;}
 
 void Port_TagInitialTeams(int left,int right){configured_left=left;configured_right=right;configure_pending=1;}
 
+/* Historia cooperativa (port/src/coop_story.c), on the host, after each room state while the lobby is open: the
+   joining friend lands on the first free seat (team 1, the rivals' side: Tt_Join), so they are moved to team 0, and
+   team 1's seats are the chapter's CPUs at the chapter's difficulty. One command per state. */
+static void coop_arrange(void){
+    extern int PortCoop_Active(void),PortCoop_FoeLevel(int);
+    int Port_TagMovePlayer(int from,int to),Port_TagSlot(int seat,int cpu,int difficulty);
+    int i,j,k,cap=Tt_Capacity(&state);
+    if(!PortCoop_Active()||cap!=4||state.phase!=TT_LOBBY||member!=state.host)return;
+    for(i=0;i<cap;++i)if(state.players[i].member&&!state.players[i].cpu&&state.players[i].team==1)
+        for(j=0;j<cap;++j)if(state.players[j].team==0&&(!state.players[j].member||state.players[j].cpu)){Port_TagMovePlayer(i,j);return;}
+    for(i=0,k=0;i<cap;++i){
+        if(state.players[i].team!=1)continue;
+        if(!state.players[i].member||!state.players[i].cpu||state.players[i].difficulty!=PortCoop_FoeLevel(k)){
+            if(!state.players[i].member||state.players[i].cpu){Port_TagSlot(i,1,PortCoop_FoeLevel(k));return;}
+        }
+        ++k;
+    }
+    for(i=0;i<cap;++i)if(state.players[i].team==0&&state.players[i].cpu){Port_TagSlot(i,0,2);return;} /* (the friend's seat stays free) */
+}
+
 /* The room's load digest is a match-setup checksum, not a language or UI checksum.
  * Include the complete roster so a 2v2..5v5 session checks every selected fighter. */
 static uint64_t tag_load_digest_word(uint64_t hash,uint32_t value){
@@ -509,7 +529,11 @@ int Port_TagBattleRenderActive(void){return SDL_GetAtomicInt(&sTagRenderActive);
 /* Cached verification of the compatible base data, independent of release labels. */
 int Port_TagDataFingerprint(unsigned long long *out){
     extern int Port_BuildIdentity(unsigned long long *);
-    return Port_BuildIdentity(out);
+    extern unsigned long long PortCoop_MixContent(unsigned long long);
+    int r=Port_BuildIdentity(out);
+    /* Historia cooperativa (port/src/coop_story.c): only a player with the same chapter file and chapter can join */
+    if(r==1&&out)*out=PortCoop_MixContent(*out);
+    return r;
 }
 
 int Port_TagChatCount(void){return chat_count;}
@@ -864,6 +888,7 @@ void Port_TagPoll(void){
             configure_pending=2;Port_TagTeams(configured_left,configured_right);
 
         }else if(!result && state.phase==TT_LOBBY && state.epoch>1 && configure_pending==2)configure_pending=0;
+        else if(!result && !configure_pending)coop_arrange();
 
     }
 

@@ -11,6 +11,7 @@ enum {
     PORT_SCREEN_NONE,
     PORT_SCREEN_TBO, /* Tenkaichi Budokai Online (menu/port_tbo.c) */
     PORT_SCREEN_ADVTRAIN, /* Entrenamiento avanzado (menu/port_advtrain.c) */
+    PORT_SCREEN_COOP, /* Historia cooperativa (menu/port_coop.c) */
 };
 
 extern s32 gPortScreen; /* the screen the mode runs next (PORT_SCREEN_*) */

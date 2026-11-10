@@ -618,6 +618,7 @@ static GsTex tbo_texture(uint32_t id) {
                 int hw=0,hh=0;uint8_t *hp=MenuText_HeadingRender(text,&hw,&hh);
                 fprintf(stderr,"bt4: main menu: \"%s\" could not be made from the disc's letters%s\n",text,
                         hp?"; drawn with the menu font":"");
+                unsigned peak=1;for(int i=0;hp&&i<hw*hh;i++)if(hp[i*4+3]>peak)peak=hp[i*4+3];
                 for(int k=0;k<2&&hp&&hw>0&&hh>0;k++){
                     uint32_t *px=calloc(512*32,4);
                     float s=28.0f/(float)hh;int dw,dh=28,ox=24,oy=2;
@@ -632,7 +633,8 @@ static GsTex tbo_texture(uint32_t id) {
                             acc[0]+=p[0]*p[3];acc[1]+=p[1]*p[3];acc[2]+=p[2]*p[3];acc[3]+=p[3];n++;
                         }
                         if(n&&acc[3]){
-                            unsigned r=acc[0]/acc[3],g=acc[1]/acc[3],b=acc[2]/acc[3],a=acc[3]/n;
+                            unsigned r=acc[0]/acc[3],g=acc[1]/acc[3],b=acc[2]/acc[3],a=acc[3]*255u/(n*peak);
+                            a=a*2>255?255:a*2; /* fully solid like the disc's lettering (shrinking thins the strokes) */
                             if(k){r=r*9/8>255?255:r*9/8;g=g*9/8>255?255:g*9/8;b=b*9/8>255?255:b*9/8;} /* chosen: a little brighter */
                             px[(y+oy)*512+x+ox]=r|(g<<8)|(b<<16)|(((a*128u+127)/255)<<24);
                         }
@@ -643,6 +645,51 @@ static GsTex tbo_texture(uint32_t id) {
                 for(int k=0;k<2;k++)if(!lettering[k]){uint32_t *blank=calloc(1,4);if(blank)lettering[k]=tbo_upload(blank,1,1);}
             }tried=1;
         }return lettering[id==TBO_MAIN_ADVTRAIN_ON]?lettering[id==TBO_MAIN_ADVTRAIN_ON]:gsWhite;
+    }
+    if(id==TBO_MAIN_COOP_OFF||id==TBO_MAIN_COOP_ON){ /* "Historia cooperativa" (src/menu/menu_a.c) */
+        static GsTex lettering[2];static int tried;
+        if(!tried){
+            extern int MenuLabels_Bt4MainItem(const char *,const char *,unsigned char **);
+            extern int Port_GameProfileEnglish(void);
+            unsigned char *pics[2]={0};const char *root=getenv("BT3_DATA");
+            const char *text=Port_GameProfileEnglish()?"Co-op Story":"Historia cooperativa";
+            if(MenuLabels_Bt4MainItem(root?root:"gamedata",text,pics))for(int k=0;k<2;k++){
+                for(int i=0;i<512*32;i++)pics[k][i*4+3]=(pics[k][i*4+3]*128u+127)/255;
+                lettering[k]=tbo_upload((uint32_t*)pics[k],512,32);
+            }else{
+                /* A letter the disc's menu and stage names lack (the composer needs every one): the line in the
+                   main menu's heading style of the port's TrueType font instead, fitted into the plate's row. */
+                extern uint8_t *MenuText_HeadingRender(const char *text, int *w, int *h);
+                int hw=0,hh=0;uint8_t *hp=MenuText_HeadingRender(text,&hw,&hh);
+                fprintf(stderr,"bt4: main menu: \"%s\" could not be made from the disc's letters%s\n",text,
+                        hp?"; drawn with the menu font":"");
+                unsigned peak=1;for(int i=0;hp&&i<hw*hh;i++)if(hp[i*4+3]>peak)peak=hp[i*4+3];
+                for(int k=0;k<2&&hp&&hw>0&&hh>0;k++){
+                    uint32_t *px=calloc(512*32,4);
+                    float s=28.0f/(float)hh;int dw,dh=28,ox=24,oy=2;
+                    if((float)hw*s>480.0f)s=480.0f/(float)hw;
+                    dw=(int)((float)hw*s);dh=(int)((float)hh*s);oy=(32-dh)/2;
+                    for(int y=0;px&&y<dh;y++)for(int x=0;x<dw;x++){
+                        int sx0=(int)((float)x/s),sx1=(int)((float)(x+1)/s),sy0=(int)((float)y/s),sy1=(int)((float)(y+1)/s);
+                        unsigned acc[4]={0,0,0,0},n=0;
+                        if(sx1<=sx0)sx1=sx0+1;if(sy1<=sy0)sy1=sy0+1;if(sx1>hw)sx1=hw;if(sy1>hh)sy1=hh;
+                        for(int yy=sy0;yy<sy1;yy++)for(int xx=sx0;xx<sx1;xx++){
+                            const uint8_t *p=hp+((size_t)yy*hw+xx)*4;
+                            acc[0]+=p[0]*p[3];acc[1]+=p[1]*p[3];acc[2]+=p[2]*p[3];acc[3]+=p[3];n++;
+                        }
+                        if(n&&acc[3]){
+                            unsigned r=acc[0]/acc[3],g=acc[1]/acc[3],b=acc[2]/acc[3],a=acc[3]*255u/(n*peak);
+                            a=a*2>255?255:a*2; /* fully solid like the disc's lettering (shrinking thins the strokes) */
+                            if(k){r=r*9/8>255?255:r*9/8;g=g*9/8>255?255:g*9/8;b=b*9/8>255?255:b*9/8;} /* chosen: a little brighter */
+                            px[(y+oy)*512+x+ox]=r|(g<<8)|(b<<16)|(((a*128u+127)/255)<<24);
+                        }
+                    }
+                    if(px)lettering[k]=tbo_upload(px,512,32); /* upload owns the pixels */
+                }
+                free(hp);
+                for(int k=0;k<2;k++)if(!lettering[k]){uint32_t *blank=calloc(1,4);if(blank)lettering[k]=tbo_upload(blank,1,1);}
+            }tried=1;
+        }return lettering[id==TBO_MAIN_COOP_ON]?lettering[id==TBO_MAIN_COOP_ON]:gsWhite;
     }
     if(id==TBO_MAIN_ONLINE_OFF||id==TBO_MAIN_ONLINE_ON){
         static GsTex lettering[2];static int tried;
