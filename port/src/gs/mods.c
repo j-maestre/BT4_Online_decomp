@@ -864,7 +864,7 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
                               bearing < -0.79f ? "a tu izquierda" : "delante";
             if (dist <= CoopRevive_Range() && p > 0) snprintf(line, sizeof(line), "REVIVIENDO %d%%... no sueltes GUARDIA", (int)(p * 100));
             else if (dist <= CoopRevive_Range()) snprintf(line, sizeof(line), "¡Compañero caído %s! Mantén GUARDIA para revivirlo", way);
-            else snprintf(line, sizeof(line), "¡Compañero caído! Está %s, a %d m: acércate", way, (int)(dist - CoopRevive_Range()) / 10 + 1);
+            else snprintf(line, sizeof(line), "¡Compañero caído %s, a %d m! Mantén GUARDIA para teletransportarte", way, (int)(dist - CoopRevive_Range()) / 10 + 1);
             coop_text(cx, y + 4, line, dist <= CoopRevive_Range() ? 0x7CFF8FFFu : 0xFF8A5BFFu, 11);
         } else coop_text(cx, y + 4, "¡Compañero caído! Tu compañero puede revivirte", 0xFF8A5BFFu, 11);
         coop_fill(cx - bw / 2 + 10, y + 26, bw - 20, 8, 0x3C3C3CE6u, 3);

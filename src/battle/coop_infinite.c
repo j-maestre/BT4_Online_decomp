@@ -125,9 +125,15 @@ s32 CoopInf_ScaleDamage(BtlMemberChr *chr, s32 amount) {
 #define REVIVE_TICKS 90     /* held this long (the battle's 30 steps a second): three seconds */
 #define REVIVE_RANGE 120.0f /* this close (the battle's units: the fighters start some 40 apart) */
 #define REVIVE_HEALTH 40.0f /* %, of the fighter's own maximum */
+#define REVIVE_WARP_TICKS 30 /* guard held this long far away: instant transmission next to the partner */
 
 extern s32 BtlCharApi_GetHp(s32 actor);
 extern void BtlCharApi_GetPos(s32 objId, f32 *out);
+extern s32 BattleSide_GetObjId(s32 side);
+extern void CoopRevive_Warp(s32 who, s32 to, f32 gap);
+/* guard held (the test variable: as if held, a CPU partner never holds it) */
+#define REV_GUARD(h) (BtlInput_IsHeld(BtlChar_Get(h), 1 /* BTLB_GUARD */) || (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_REVIVE_AUTO")))
+extern f32 CoopRevive_Delta(s32 from, s32 to, s32 axis), CoopRevive_Yaw(s32 who);
 extern s32 BtlInput_IsHeld(BtlMemberChr *chr, u32 mask);
 extern s32 BtlMember_CountAlive(BtlMemberChr *chr);
 extern BtlMemberChr *BtlChar_Get(s32 side);
@@ -139,14 +145,16 @@ static s32 sRevCostume[10];
 static s32 sRevProgress[10]; /* how long a partner has held guard next to this fallen player */
 static s32 sRevGranted[10];  /* a revive gave the member behind its health: not taken back until it comes in */
 static s32 sRevActive[10];   /* the member fighting last step (a change: the revived one came in) */
+static s32 sRevWarp[10];     /* how long a partner far away has held guard: a second, and it appears beside */
 
 void CoopRevive_Configure(s32 on) {
     s32 i;
 
     sRevOn = on;
-    for (i = 0; i < 10; i++) { sRevChara[i] = -1; sRevCostume[i] = 0; sRevProgress[i] = 0; sRevGranted[i] = 0; sRevActive[i] = 0; }
+    for (i = 0; i < 10; i++) { sRevChara[i] = -1; sRevCostume[i] = 0; sRevProgress[i] = 0; sRevGranted[i] = 0; sRevActive[i] = 0; sRevWarp[i] = 0; }
 }
 s32 CoopRevive_Active(void) { return sRevOn; }
+extern s32 TagBattle_Active(void);
 void CoopRevive_SetupPlayer(s32 side, s32 chara, s32 costume, s32 level) {
     if (side < 0 || side >= 10) return;
     sRevChara[side] = chara;
@@ -158,10 +166,10 @@ void CoopRevive_SetupPlayer(s32 side, s32 chara, s32 costume, s32 level) {
 void CoopRevive_Update(void) {
     s32 d, h, n = TagBattle_Count();
 
-    if (!sRevOn) return;
+    if (!sRevOn || !TagBattle_Active()) return;
     for (d = 0; d < n && d < 10; d++) {
         BtlMemberChr *down = BtlChar_Get(d);
-        f32 pd[4], ph[4], dx, dz, dy;
+        f32 dx, dz, dy;
         s32 helped = 0;
 
         if (sRevChara[d] < 0 || TagBattle_Team(d) != 0) continue;
@@ -170,26 +178,30 @@ void CoopRevive_Update(void) {
                                                          battle's start give it some health) */
             BtlMember_GetGauge(down, down->active ? 0 : 1)->health = 0;
         if (BtlCharApi_GetHp(d) > 0 || BtlMember_CountAlive(down) > 0) { sRevProgress[d] = 0; continue; }
-        BtlCharApi_GetPos(d, pd);
         for (h = 0; h < n && !helped; h++) {
             if (h == d || TagBattle_Team(h) != 0 || BtlCharApi_GetHp(h) <= 0) continue;
-            BtlCharApi_GetPos(h, ph);
-            dx = ph[0] - pd[0]; dy = ph[1] - pd[1]; dz = ph[2] - pd[2];
-            if ((dx * dx + dy * dy + dz * dz <= REVIVE_RANGE * REVIVE_RANGE && BtlInput_IsHeld(BtlChar_Get(h), 1 /* BTLB_GUARD */)) ||
-                (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_REVIVE_AUTO")))
-                helped = 1; /* (the test variable: any partner revives from anywhere, as a CPU partner never holds guard) */
+            dx = CoopRevive_Delta(d, h, 0); dy = CoopRevive_Delta(d, h, 1); dz = CoopRevive_Delta(d, h, 2);
+            if (dx * dx + dy * dy + dz * dz > REVIVE_RANGE * REVIVE_RANGE && REV_GUARD(h)) {
+                if (++sRevWarp[d] >= REVIVE_WARP_TICKS) { /* instant transmission next to the partner */
+                    CoopRevive_Warp(h, d, REVIVE_RANGE * 0.3f);
+                    sRevWarp[d] = 0;
+                    fprintf(stderr, "coop: player %d appeared next to %d\n", h, d);
+                }
+                continue;
+            }
+            if (dx * dx + dy * dy + dz * dz <= REVIVE_RANGE * REVIVE_RANGE && REV_GUARD(h))
+                helped = 1;
         }
         {   extern s32 gPortResim;
             static s32 logTick;
             if (!gPortResim && ++logTick % 30 == 0) /* (a line a second: what the revive sees) */
                 for (h = 0; h < n; h++) {
-                    f32 q[4];
+                    f32 x, y, z;
                     if (h == d || TagBattle_Team(h) != 0) continue;
-                    BtlCharApi_GetPos(h, q);
-                    fprintf(stderr, "coop revive: down=%d progress=%d helper=%d hp=%d dist=%.0f guard=%d range=%.0f\n", d,
-                            sRevProgress[d], h, BtlCharApi_GetHp(h),
-                            (f32)__builtin_sqrtf((q[0] - pd[0]) * (q[0] - pd[0]) + (q[1] - pd[1]) * (q[1] - pd[1]) + (q[2] - pd[2]) * (q[2] - pd[2])),
-                            BtlInput_IsHeld(BtlChar_Get(h), 1), REVIVE_RANGE);
+                    x = CoopRevive_Delta(d, h, 0); y = CoopRevive_Delta(d, h, 1); z = CoopRevive_Delta(d, h, 2);
+                    fprintf(stderr, "coop revive: down=%d progress=%d helper=%d hp=%d dist=%d guard=%d range=%d\n", d,
+                            sRevProgress[d], h, BtlCharApi_GetHp(h), (s32)__builtin_sqrtf(x * x + y * y + z * z),
+                            BtlInput_IsHeld(BtlChar_Get(h), 1), (s32)REVIVE_RANGE); /* (whole numbers: floats print wrong here) */
                 }
         }
         if (helped) sRevProgress[d]++;
@@ -208,7 +220,7 @@ void CoopRevive_Update(void) {
 /* A player of the team that is down and can be revived: the partner may lock on to it (src/battle/battle_work.c,
    TagBattle_Target) to find it. */
 s32 CoopRevive_IsDown(s32 d) {
-    if (!sRevOn || d < 0 || d >= 10 || d >= TagBattle_Count() || sRevChara[d] < 0) return 0;
+    if (!sRevOn || !TagBattle_Active() || d < 0 || d >= 10 || d >= TagBattle_Count() || sRevChara[d] < 0) return 0;
     return BtlCharApi_GetHp(d) <= 0 && BtlMember_CountAlive(BtlChar_Get(d)) <= 0;
 }
 
@@ -217,26 +229,21 @@ s32 CoopRevive_IsDown(s32 d) {
 /* From fighter `from`: the nearest fallen partner's distance (in the battle's units) and its bearing (radians, 0 ahead
    of the fighter's camera, positive to the right); 0 without one. */
 s32 CoopRevive_Guide(s32 from, f32 *dist, f32 *bearing) {
-    extern void BtlCharApi_GetCamPose(s32 objId, f32 *pos, f32 *rot);
-    extern s32 BattleSide_GetObjId(s32 side);
     extern f32 sqrtf(f32), atan2f(f32, f32);
-    f32 pf[4], pd[4], eye[4], rot[4], best = -1.0f, dx, dz, d, a;
+    f32 best = -1.0f, dx, dz, d, ang;
     s32 i;
 
-    if (!sRevOn || from < 0 || from >= TagBattle_Count() || BtlCharApi_GetHp(from) <= 0) return 0;
-    BtlCharApi_GetPos(from, pf);
-    BtlCharApi_GetCamPose(BattleSide_GetObjId(from), eye, rot);
+    if (!sRevOn || !TagBattle_Active() || from < 0 || from >= TagBattle_Count() || BtlCharApi_GetHp(from) <= 0) return 0;
     for (i = 0; i < TagBattle_Count() && i < 10; i++) {
         if (i == from || !CoopRevive_IsDown(i)) continue;
-        BtlCharApi_GetPos(i, pd);
-        dx = pd[0] - pf[0]; dz = pd[2] - pf[2];
+        dx = CoopRevive_Delta(from, i, 0); dz = CoopRevive_Delta(from, i, 2);
         d = sqrtf(dx * dx + dz * dz);
         if (best >= 0.0f && d >= best) continue;
         best = d;
-        a = atan2f(dx, dz) - rot[1]; /* (the camera's yaw: the same turn as TagBattle_TargetDirection) */
-        while (a > 3.14159265f) a -= 6.2831853f;
-        while (a < -3.14159265f) a += 6.2831853f;
-        *bearing = a;
+        ang = atan2f(dx, dz) - CoopRevive_Yaw(from); /* (from where the fighter faces: its opponent, the camera's way) */
+        while (ang > 3.14159265f) ang -= 6.2831853f;
+        while (ang < -3.14159265f) ang += 6.2831853f;
+        *bearing = ang;
     }
     if (best < 0.0f) return 0;
     *dist = best;
@@ -247,7 +254,7 @@ s32 CoopRevive_Range(void) { return (s32)REVIVE_RANGE; }
 s32 CoopRevive_AnyDown(void) {
     s32 d;
 
-    if (!sRevOn) return 0;
+    if (!sRevOn || !TagBattle_Active()) return 0;
     for (d = 0; d < TagBattle_Count() && d < 10; d++)
         if (sRevChara[d] >= 0 && BtlCharApi_GetHp(d) <= 0 && BtlMember_CountAlive(BtlChar_Get(d)) <= 0) return 1;
     return 0;

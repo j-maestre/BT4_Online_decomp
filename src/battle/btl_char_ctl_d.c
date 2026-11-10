@@ -183,6 +183,46 @@ void BtlChar_Place(BtlCtlChr *chr, Vec4 *pos, Vec4 *rot, s32 area) {
     BtlObjBody_Reset(obj);
 }
 
+#ifdef PORT
+/* Historia cooperativa (src/battle/coop_infinite.c): instant transmission next to a fallen partner. Fighter `who` appears
+   `gap` units from fighter `to`, on its side of it, facing it, in its stage area. */
+void CoopRevive_Warp(s32 who, s32 to, f32 gap) {
+    extern BtlCtlChr *BtlChar_Get(s32 side);
+    extern f32 sqrtf(f32), atan2f(f32, f32);
+    BtlCtlChr *a = BtlChar_Get(who), *b = BtlChar_Get(to);
+    Vec4 pos, rot;
+    f32 dx, dz, d;
+
+    if (a == NULL || b == NULL) return;
+    dx = BtlChar_GetPos(a)->pos.x - BtlChar_GetPos(b)->pos.x;
+    dz = BtlChar_GetPos(a)->pos.z - BtlChar_GetPos(b)->pos.z;
+    d = sqrtf(dx * dx + dz * dz);
+    if (d < 0.01f) { dx = 0.0f; dz = 1.0f; d = 1.0f; }
+    pos = BtlChar_GetPos(b)->pos;
+    pos.x += dx / d * gap;
+    pos.z += dz / d * gap;
+    rot = BtlChar_GetPos(a)->rot;
+    rot.y = atan2f(-dx, -dz); /* (facing the partner) */
+    BtlChar_Place(a, &pos, &rot, BtlChar_GetObj(b)->area);
+}
+#endif
+
+/* Fighter `to`'s position less fighter `from`'s, coordinate `axis` (0 x, 1 y, 2 z). */
+f32 CoopRevive_Delta(s32 from, s32 to, s32 axis) {
+    extern BtlCtlChr *BtlChar_Get(s32 side);
+    BtlCtlChr *a = BtlChar_Get(from), *b = BtlChar_Get(to);
+    if (a == NULL || b == NULL) return 0.0f;
+    return axis == 0 ? BtlChar_GetPos(b)->pos.x - BtlChar_GetPos(a)->pos.x
+         : axis == 1 ? BtlChar_GetPos(b)->pos.y - BtlChar_GetPos(a)->pos.y
+                     : BtlChar_GetPos(b)->pos.z - BtlChar_GetPos(a)->pos.z;
+}
+/* Fighter `who`'s facing (yaw, radians). */
+f32 CoopRevive_Yaw(s32 who) {
+    extern BtlCtlChr *BtlChar_Get(s32 side);
+    BtlCtlChr *a = BtlChar_Get(who);
+    return a != NULL ? BtlChar_GetPos(a)->rot.y : 0.0f;
+}
+
 /* Places the fighter at its player's start position of the stage. */
 void BtlChar_PlaceAtStart(BtlCtlChr *chr) {
     Vec4 pos;
