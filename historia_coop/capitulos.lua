@@ -83,12 +83,12 @@ return {
             { personaje = 29, nivel = 3, vida = 160, nombre = "Vegeta (Explorador)" },
         },
         refuerzos = {
-            { personaje = 170, nivel = 2, vida = 120, nombre = "Nappa (Ozaru)" },
-            { personaje = 30, nivel = 3, vida = 180, nombre = "Vegeta (Ozaru)" },
+            { personaje = 80, nivel = 3, vida = 150, nombre = "Nappa (furioso)" },
+            { personaje = 29, nivel = 3, vida = 200, nombre = "Vegeta (al límite)" },
         },
         escenario = -1, musica = -1, tiempo = 4,
-        intro = "Nappa y Vegeta. Cuando creáis que los habéis vencido, mirarán a la luna... "
-             .. "Guardad energía: lo peor viene después.",
+        intro = "Nappa y Vegeta. Cuando creáis que los habéis vencido, volverán a levantarse "
+             .. "más furiosos. Guardad energía: lo peor viene después.",
         cierre = "Vegeta huye en su nave, herido en su orgullo. Jura que volverá.",
         derrota = "Vegeta: «Ni juntos sois rival para la élite saiyajin».",
     },
@@ -260,12 +260,12 @@ return {
             { personaje = 109, nivel = 2, vida = 120, nombre = "Cell Jr." },
         },
         refuerzos = {
-            { personaje = 108, nivel = 3, vida = 250, nombre = "Cell Max", detras = 1 },
+            { personaje = 107, nivel = 3, vida = 200, nombre = "Cell (regenerado)", detras = 1 },
             { personaje = 109, nivel = 2, vida = 120, nombre = "Cell Jr.", detras = 2 },
         },
         escenario = -1, musica = -1, tiempo = 4,
-        intro = "El jefe final de la saga: Cell Super Perfecto con el triple de vida, sus hijos, "
-             .. "y algo enorme si conseguís tumbarlo. ¡Kamehameha padre e hijo!",
+        intro = "El jefe final de la saga: Cell Super Perfecto con el triple de vida y sus hijos. "
+             .. "Y si conseguís tumbarlo... se regenera. ¡Kamehameha padre e hijo!",
         cierre = "¡Cell ha sido derrotado! La Tierra está a salvo gracias a vuestro trabajo en equipo.",
         derrota = "Cell se ríe. La Tierra está perdida... de momento.",
     },

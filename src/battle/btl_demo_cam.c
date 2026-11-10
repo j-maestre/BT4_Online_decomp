@@ -209,6 +209,13 @@ s32 DemoCam_Update(void) {
             DemoCam_SetBase((Mtx44 *)((u8 *)gDemoCam->chr + 0x9A0));
         }
         pose = &gDemoCam->pose;
+#ifdef PORT
+        if (gDemoCam->anim == NULL || gDemoCam->anim->defaults == NULL || gDemoCam->anim->channelCount < 0 || gDemoCam->anim->channelCount > 256) {
+            /* (stopped just above at its end, or an animation whose data is gone: nothing more to read) */
+            if (gDemoCam->anim != NULL) DemoCam_Stop();
+            return 1;
+        }
+#endif
         DemoCam_EvalAnim(pose, gDemoCam->time);
         memset(&shakePos, 0, sizeof(Vec4));
         shakePos.w = 1.0f;

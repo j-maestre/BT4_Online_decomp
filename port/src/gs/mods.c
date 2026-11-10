@@ -926,6 +926,19 @@ static void push_game(lua_State *L, const FpState *fp, const ModsGame *g) {
     }
     set_bool(L, "battle", fp->battle && g->battle);
     set_bool(L, "hud_shown", fp->gauges);
+    {   /* Historia cooperativa's endless mode (src/battle/coop_infinite.c): the wave being fought, the rivals fallen */
+        extern int CoopInf_Active(void), CoopInf_Wave(void), CoopInf_Defeated(void);
+        extern int CoopRevive_AnyDown(void);
+        extern float CoopRevive_Progress(void);
+        if (fp->battle && g->battle && CoopInf_Active()) {
+            set_int(L, "coop_wave", CoopInf_Wave() + 1);
+            set_int(L, "coop_defeated", CoopInf_Defeated());
+        }
+        if (fp->battle && g->battle && CoopRevive_AnyDown()) { /* a partner down: reviving (coop_revive 0..1) */
+            set_bool(L, "coop_down", 1);
+            set_num(L, "coop_revive", CoopRevive_Progress());
+        }
+    }
     set_bool(L, "online", Port_NetSession() || Port_NetActive() || (Port_TagNetwork()&&!Port_TagLocalBattle()));
     if (Port_NetSession() || Port_NetActive()) {
         extern int Port_NetMe(void);

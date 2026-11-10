@@ -25,8 +25,9 @@ extern void Port_MenuPage(int screen);
 extern int Port_PageAspectMilli(void);
 
 extern int PortCoop_Load(void), PortCoop_Count(void), PortCoop_Selected(void), PortCoop_Done(int i);
-extern void PortCoop_Select(int i), PortCoop_JoinBegin(void);
-extern int PortCoop_Joining(void);
+extern void PortCoop_Select(int i), PortCoop_JoinBegin(void), PortCoop_SelectInfinite(int foes);
+extern int PortCoop_InfRecord(int foes);
+extern int PortCoop_Joining(void), PortCoop_Infinite(void);
 extern const char *PortCoop_Error(void);
 extern const char *PortCoop_ChTitle(int i), *PortCoop_ChSaga(int i), *PortCoop_ChPair(int i), *PortCoop_ChIntro(int i);
 extern const char *PortCoop_ChFoeName(int i, int k);
@@ -121,12 +122,13 @@ static void Co_StartUpdate(void) {
 
     Ps_Prompt(0, "Confirmar");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->start, 2);
+    Ps_Move(&sCo->start, 4);
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
         if (sCo->start == 0) Co_SetPage(CO_LIST);
-        else { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
+        else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
+        else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
         Co_Leave(0);
@@ -245,12 +247,20 @@ static void Co_Draw(void) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
         Co_Wrap(50.0f + slide, 82.0f, "T\303\272 y un amigo, cada uno en su casa, contra los rivales de la CPU de cada cap\303\255tulo. "
                 "Uno crea la sala y elige el cap\303\255tulo; el otro se une con el c\303\263digo.", 0.55f, 410.0f, 20.0f, 4, 0);
-        Co_Row(60.0f + slide, 320.0f + slide, 180.0f, "Crear sala", NULL, sCo->start == 0, 3);
-        Co_Row(60.0f + slide, 320.0f + slide, 212.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
-        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 256.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
+        {   char rec[2][40];
+            sprintf(rec[0], "R\303\251cord: %d", PortCoop_InfRecord(2));
+            sprintf(rec[1], "R\303\251cord: %d", PortCoop_InfRecord(3));
+            Co_Row(60.0f + slide, 380.0f + slide, 170.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 200.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 236.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 266.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
+        }
+        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 302.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
         box = sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
-            : "Escribe el c\303\263digo que te d\303\251 tu amigo. El cap\303\255tulo lo elige quien crea la sala.";
+            : sCo->start == 1
+            ? "Escribe el c\303\263digo que te d\303\251 tu amigo. El cap\303\255tulo o el modo lo elige quien crea la sala."
+            : "Oleadas sin fin: cuando cae un rival entra otro, cada vez con m\303\241s vida y m\303\241s da\303\261o. Cada 5 oleadas, un jefe. Crea la sala y pasa el c\303\263digo.";
     } else if (sCo->page == CO_LIST) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
         if (count == 0) {
@@ -310,6 +320,7 @@ s32 PortCoop_Run(void) {
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
     if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
+    else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
     else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on the list */
         sCo->cur = before;
         sCo->top = before >= CO_ROWS ? before - CO_ROWS + 1 : 0;

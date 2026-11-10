@@ -418,6 +418,7 @@ void Battle_Loop(void) {
             extern s32 BtlCharApi_GetHp(s32 actor);
             for(actor=0;actor<TagBattle_Count();++actor)
                 if(BtlCharApi_GetHp(TagBattle_Target(actor))<=0)TagBattle_CycleTarget(actor);
+            {extern void CoopRevive_Update(void);CoopRevive_Update();} /* Historia cooperativa: reviving (src/battle/coop_infinite.c) */
         }
         Snd_Update();
         Snd_SendFighters();

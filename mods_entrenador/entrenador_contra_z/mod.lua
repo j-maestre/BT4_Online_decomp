@@ -168,6 +168,22 @@ return {
 
     on_hud = function(hud, game)
         if not game.battle or not game.hud_shown then return end
+        if game.coop_wave then -- Historia cooperativa: modo infinito
+            local boss = game.coop_wave % 5 == 0
+            hud.fill(hud.w / 2 - 90, 6, 180, 38, bt3.rgba(0, 0, 0, 200), 6)
+            hud.text(hud.w / 2, 10, boss and string.format("OLEADA %d - JEFE", game.coop_wave) or string.format("OLEADA %d", game.coop_wave),
+                     rgba(boss and 0xFF5B5BFF or 0xFFD55BFF, 1), 16, "center")
+            hud.text(hud.w / 2, 29, string.format("%d derrotados", game.coop_defeated or 0), rgba(0xFFFFFFFF, 0.85), 10, "center")
+        end
+        if game.coop_down then -- Historia cooperativa: un compañero ha caído
+            local p = game.coop_revive or 0
+            local x, y, w = hud.w / 2 - 130, hud.h * 0.72, 260
+            hud.fill(x, y, w, 40, bt3.rgba(0, 0, 0, 205), 6)
+            hud.text(hud.w / 2, y + 4, p > 0 and "REVIVIENDO..." or "¡Compañero caído! Acércate y mantén GUARDIA",
+                     rgba(p > 0 and 0x7CFF8FFF or 0xFF8A5BFF, 1), 12, "center")
+            hud.fill(x + 10, y + 24, w - 20, 8, bt3.rgba(60, 60, 60, 230), 3)
+            if p > 0 then hud.fill(x + 10, y + 24, (w - 20) * math.min(p, 1), 8, bt3.rgba(124, 255, 143, 255), 3) end
+        end
         local f = game.fighters[mySide(game)]
 
         if f and not f.defence then

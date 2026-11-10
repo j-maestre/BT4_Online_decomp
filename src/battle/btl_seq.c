@@ -1561,6 +1561,9 @@ s32 BtlSeqEnd_Enter(BtlSeqWaitCtx *ctx) {
         extern void PortCoop_BattleEnded(int winner); /* Historia cooperativa (port/src/coop_story.c) */
         PortCoop_BattleEnded(Battle_GetResult()->winner);
         fprintf(stderr,"tag battle over: winner=%d reason=%d\n",Battle_GetResult()->winner,Battle_GetResult()->reason);
+        if(getenv("BT4_RENDER_TEST")){extern s32 BtlCharApi_GetMemberCount(s32),BattleSide_GetObjId(s32);s32 a;
+            for(a=0;a<TagBattle_Count();++a)fprintf(stderr,"tag battle over: actor %d hp=%d alive-members=%d members=%d\n",a,BtlCharApi_GetHp(a),
+                BtlMember_CountAlive(BtlChar_Get(a)),BtlCharApi_GetMemberCount(BattleSide_GetObjId(a)));}
         TagBattle_ResultBegin();ctx->step=2;return 1;
     }
     if (BattleResult_IsAborted()) {

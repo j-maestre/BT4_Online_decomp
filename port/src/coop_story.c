@@ -171,10 +171,16 @@ const PortCoopChapter *PortCoop_Get(int i) { return i >= 0 && i < sCount ? &sCh[
 /* The chapter the room is for (-1: none, an ordinary Tag Team room). sJoining: Join by code was chosen in the co-op
    screen; the chapter is not known yet and comes from the host (PortCoop_Announced, through the room's chat). */
 static int sJoining;
-void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; sJoining = 0; }
-void PortCoop_JoinBegin(void) { sSelected = -1; sOutcome = 0; sJoining = 1; }
+/* The endless mode (src/battle/coop_infinite.c generates its rivals): 0 = off, else the rivals at once (2 or 3). */
+static int sInfinite, sInfWaves;
+extern int CoopInf_FirstChara(int k), CoopInf_Wave(void);
+void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; sJoining = 0; sInfinite = 0; }
+void PortCoop_SelectInfinite(int foes) { sSelected = -1; sOutcome = 0; sJoining = 0; sInfinite = foes == 3 ? 3 : 2; }
+void PortCoop_JoinBegin(void) { sSelected = -1; sOutcome = 0; sJoining = 1; sInfinite = 0; }
 int PortCoop_Selected(void) { return sSelected; }
-int PortCoop_Active(void) { return sSelected >= 0 || sJoining; }
+int PortCoop_Infinite(void) { return sInfinite; }
+int PortCoop_Active(void) { return sSelected >= 0 || sJoining || sInfinite; }
+int PortCoop_InfRecord(int foes) { char key[32]; snprintf(key, sizeof(key), "coop_inf_record_%d", foes); return Port_Setting(key, 0); }
 int PortCoop_Joining(void) { return sJoining; }
 
 /* The room's content fingerprint: both players must have the same capitulos.lua (not the same chapter: the joiner
@@ -187,10 +193,15 @@ unsigned long long PortCoop_MixContent(unsigned long long base) {
 }
 
 /* The host's announcement, "#coop:<id>", sent in the room's chat (port/src/gs/tag_team_net.c). */
-const char *PortCoop_AnnounceId(void) { return sSelected >= 0 ? sCh[sSelected].id : NULL; }
+const char *PortCoop_AnnounceId(void) { return sInfinite == 3 ? "__inf3" : sInfinite ? "__inf2" : sSelected >= 0 ? sCh[sSelected].id : NULL; }
 void PortCoop_Announced(const char *id) {
     int i;
     if (!sJoining || !id) return;
+    if (!strcmp(id, "__inf2") || !strcmp(id, "__inf3")) { /* the endless mode (the joiner stays "joining": no chapter) */
+        int foes = id[5] - '0';
+        if (sInfinite != foes) { sInfinite = foes; sSelected = -1; sOutcome = 0; fprintf(stderr, "coop: the host's mode is endless, %d rivals\n", foes); }
+        return;
+    }
     for (i = 0; i < sCount; i++)
         if (!strcmp(sCh[i].id, id)) {
             if (sSelected != i) { sSelected = i; sOutcome = 0; fprintf(stderr, "coop: the host's chapter is %s\n", id); }
@@ -200,7 +211,7 @@ void PortCoop_Announced(const char *id) {
 }
 
 static const PortCoopFoe *foe(int k) { return sSelected >= 0 && k >= 0 && k < sCh[sSelected].foes ? &sCh[sSelected].foe[k] : NULL; }
-int PortCoop_FoeCount(void) { return sSelected >= 0 ? sCh[sSelected].foes : 2; }
+int PortCoop_FoeCount(void) { return sInfinite ? sInfinite : sSelected >= 0 ? sCh[sSelected].foes : 2; }
 
 /* The reinforcements behind rival k (they enter one after another when it falls): reinforcement r of the list goes
    behind rival r % foes, so they come in turns. How many; the j-th through the pointers. */
@@ -225,7 +236,7 @@ int PortCoop_Reserve(int k, int j, int *chara, int *costume, int *level, int *he
     *health = sCh[sSelected].reserve[r].health;
     return 1;
 }
-int PortCoop_FoeChara(int k) { return foe(k) ? foe(k)->chara : -1; }
+int PortCoop_FoeChara(int k) { return sInfinite ? (k >= 0 && k < sInfinite ? CoopInf_FirstChara(k) : -1) : foe(k) ? foe(k)->chara : -1; }
 int PortCoop_FoeCostume(int k) { return foe(k) ? foe(k)->costume : 0; }
 int PortCoop_FoeLevel(int k) { return foe(k) ? foe(k)->level : 2; }
 int PortCoop_FoeHealth(int k) { return foe(k) ? foe(k)->health : 100; }
@@ -248,6 +259,15 @@ int PortCoop_Done(int i) {
 
 /* The end of a Tag Team battle (src/battle/btl_seq.c): winner bits of the result, 1 = team 0 (the players). */
 void PortCoop_BattleEnded(int winner) {
+    if (sInfinite && !gPortResim) {
+        char key[32];
+        sInfWaves = CoopInf_Wave();
+        snprintf(key, sizeof(key), "coop_inf_record_%d", sInfinite);
+        if (sInfWaves > Port_Setting(key, 0)) { Port_SettingSave(key, sInfWaves); Port_SettingsWrite(); sOutcome = 4; }
+        else sOutcome = 3;
+        fprintf(stderr, "coop: endless mode over: %d waves\n", sInfWaves);
+        return;
+    }
     if (gPortResim || sSelected < 0) return;
     sOutcome = (winner & 1) ? 1 : 2;
     if (sOutcome == 1) {
@@ -260,6 +280,14 @@ void PortCoop_BattleEnded(int winner) {
 
 /* The line to show after the battle, once: the closing text or the defeat line; NULL when there is none. */
 const char *PortCoop_TakeOutcome(void) {
+    if (sInfinite && sOutcome >= 3) {
+        static char line[160];
+        int o = sOutcome, rec = PortCoop_InfRecord(sInfinite);
+        sOutcome = 0;
+        if (o == 4) snprintf(line, sizeof(line), "¡Nuevo récord! Habéis superado %d oleadas.", sInfWaves);
+        else snprintf(line, sizeof(line), "Habéis superado %d oleadas. Vuestro récord: %d.", sInfWaves, rec);
+        return line;
+    }
     int o = sOutcome;
     sOutcome = 0;
     if (sSelected < 0 || o == 0) return NULL;
@@ -268,7 +296,7 @@ const char *PortCoop_TakeOutcome(void) {
 }
 
 /* The chosen chapter's title (the room's heading on the online screens), NULL with none. */
-const char *PortCoop_Title(void) { return sSelected >= 0 ? sCh[sSelected].title : NULL; }
+const char *PortCoop_Title(void) { return sInfinite == 3 ? "Modo infinito (2 contra 3)" : sInfinite ? "Modo infinito (2 contra 2)" : sSelected >= 0 ? sCh[sSelected].title : NULL; }
 
 /* Chapter i's fields, for the chapter screen (src/menu/port_coop.c): plain strings and numbers, no structure crosses
    into the game code. */
