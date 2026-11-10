@@ -12,8 +12,8 @@
     "vu4.vert": "e6a76cfcae39d10b10a039c88700b17d69b374fca1ab124903729ea1627c8a7a",
     "vu6.vert": "ede902d15fedbaf21f0b5804481ecbe87262172ac7629198e94967a00c9f7058"
   },
-  "generator_sha256": "5b945b67a936f5417c0e65b6d37ec5cb7dca9b00d00f805932b331c63d434378",
-  "header_sha256": "8a6b953d8cf8d62ab2b25070b28d8fa97d6bf6a69bf767b4ab2b368cd93892e2",
+  "generator_sha256": "d258cde7cd7b1d822711a0907775b2887240fc6a1f709f182651ddc124d67b87",
+  "header_sha256": "12a0733ebec16612124920908ab87665c9f847d2b80cb99857460e8309813f35",
   "spv_sha256": {
     "gs.vert": "90128f47106627bfb227b81a481179f2745f59d34b1027000bf1e182f76e95fb",
     "gs.frag": "83b902bb2fa77cfc99a09cd27cc7e1face565541a453e6a8167d659dcc834023",
@@ -49,7 +49,7 @@
     {
       "shader": "gs.frag",
       "compiled": true,
-      "diagnostics": "C:\\Users\\ygonzalezgarcia\\Documents\\Codex\\2026-10-18\\quiero-que-me-ayudes-a-solucionar-2\\gs.frag(106,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
+      "diagnostics": "C:\\Users\\Xema\\Desktop\\BT4Online\\entrenador-src\\gs.frag(106,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
       "bytes": 3608,
       "sha256": "1743533b2f713bd2043d59061f32cf2c3a74d643b4d2d8326d345c1c2553d587"
     },
@@ -62,14 +62,14 @@
     {
       "shader": "gsnz.frag",
       "compiled": true,
-      "diagnostics": "C:\\Users\\ygonzalezgarcia\\Documents\\Codex\\2026-10-18\\quiero-que-me-ayudes-a-solucionar-2\\gsnz.frag(104,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
+      "diagnostics": "C:\\Users\\Xema\\Desktop\\BT4Online\\entrenador-src\\gsnz.frag(104,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
       "bytes": 3336,
       "sha256": "46c462820a99a877de45ab7f523684ccde8995762d1a81e1fe3e5bddacd5640c"
     },
     {
       "shader": "gswb.frag",
       "compiled": true,
-      "diagnostics": "C:\\Users\\ygonzalezgarcia\\Documents\\Codex\\2026-10-18\\quiero-que-me-ayudes-a-solucionar-2\\gswb.frag(138,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
+      "diagnostics": "C:\\Users\\Xema\\Desktop\\BT4Online\\entrenador-src\\gswb.frag(138,45-78): warning X4121: gradient-based operations must be moved out of flow control to prevent divergence. Performance may improve by using a non-gradient operation\n\u0000",
       "bytes": 4772,
       "sha256": "9b1d1db344cc23a6e7d9d1c11a6cedd12928eb22cb34a8914be0ab5bff5084ed"
     },
