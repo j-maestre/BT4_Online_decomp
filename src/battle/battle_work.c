@@ -172,6 +172,8 @@ s32 TagBattle_Target(s32 actor) {
     if(!TagBattle_Active() || actor<0 || actor>=sTagActors)return actor^1;
     if(sTagPairs[actor]>=0)return sTagPairs[actor];
     target=sTagTargets[actor];
+    {extern s32 CoopRevive_IsDown(s32); /* Historia cooperativa: a fallen partner locked on to, to go and revive it */
+     if(target>=0&&target<sTagActors&&target!=actor&&TagBattle_Allied(target,actor)&&CoopRevive_IsDown(target))return target;}
     if(target<0 || target>=sTagActors || TagBattle_Allied(target,actor))target=TagBattle_FirstEnemy(actor);
     return target;
 }
@@ -182,19 +184,22 @@ s32 TagBattle_SetTarget(s32 actor,s32 target){
     {s32 action=BtlAct_GetCurrent(BtlChar_Get(actor));if(action>=0xB4&&action<=0xBF)return 0;}
     sTagTargets[actor]=target;return 1;
 }
+static s32 sTagCycleAllies; /* (only while a player's lock-on button cycles: TagBattle_CycleTargetInput) */
 void TagBattle_CycleTarget(s32 actor) {
     s32 i,old=TagBattle_Target(actor);
     extern void *BtlChar_Get(s32);extern s32 BtlAct_GetCurrent(void *);
     if(TagBattle_Pair(actor)>=0)return;
     if(actor<0||actor>=sTagActors)return;
     {s32 action=BtlAct_GetCurrent(BtlChar_Get(actor));if(action>=0xB4&&action<=0xBF)return;}
-    for(i=1;i<=sTagActors;++i){s32 target=(old+i)%sTagActors;
-        if(!TagBattle_Allied(target,actor) && BtlCharApi_GetHp(target)>0){
+    for(i=1;i<=sTagActors;++i){s32 target=(old+i)%sTagActors;extern s32 CoopRevive_IsDown(s32);
+        if((!TagBattle_Allied(target,actor) && BtlCharApi_GetHp(target)>0) ||
+           (sTagCycleAllies && target!=actor && TagBattle_Allied(target,actor) && CoopRevive_IsDown(target))){ /* (a fallen partner too, by the player's own lock-on button) */
             sTagTargets[actor]=target;
             if(actor==0 && target!=old && BtlCharApi_GetHp(old)<=0 && getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_KO_TEST"))
                 fprintf(stderr,"tag auto target: actor=0 old=%d target=%d\n",old,target);
             return;}}
 }
+void TagBattle_CycleTargetInput(s32 actor){sTagCycleAllies=1;TagBattle_CycleTarget(actor);sTagCycleAllies=0;}
 s32 TagBattle_TargetDirection(s32 actor,s32 direction) {
     extern void BtlCharApi_GetPos(s32 objId,Vec4 *out);
     extern void BtlCharApi_GetCamPose(s32 objId,Vec4 *pos,Vec4 *rot);

@@ -192,6 +192,13 @@ void CoopRevive_Update(void) {
     }
 }
 
+/* A player of the team that is down and can be revived: the partner may lock on to it (src/battle/battle_work.c,
+   TagBattle_Target) to find it. */
+s32 CoopRevive_IsDown(s32 d) {
+    if (!sRevOn || d < 0 || d >= 10 || d >= TagBattle_Count() || sRevChara[d] < 0) return 0;
+    return BtlCharApi_GetHp(d) <= 0 && BtlMember_CountAlive(BtlChar_Get(d)) <= 0;
+}
+
 /* For the HUD (mods: game.coop_down, game.coop_revive): a player of the team is down (and can be revived); the
    furthest revive under way, 0..1. */
 s32 CoopRevive_AnyDown(void) {

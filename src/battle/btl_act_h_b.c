@@ -519,6 +519,12 @@ s32 BtlAct_DraggedDown(BtlActHChr *chr, s32 phase) {
  * freezes), 0x128 (no end-of-battle check) and the rest of the set; holds the action against forced actions.
  */
 void BtlActChange_SetFlags(BtlActHChr *chr) {
+#ifdef PORT
+    /* TAG TEAM: a member coming in (actions 0xF3..0xF8: a reinforcement, a revived player) does not freeze anyone (the
+       hit-stop would hold the fighter it targets, a player, for the whole entry); transformations keep it */
+    extern s32 TagBattle_Active(void);
+    if (!(TagBattle_Active() && BtlAct_GetCurrent(chr) >= 0xF3 && BtlAct_GetCurrent(chr) <= 0xF8))
+#endif
     BtlChar_SetFlag(chr, 0x125);
     BtlChar_SetFlag(chr, 0x12A);
     BtlChar_SetFlag(chr, 0x42);

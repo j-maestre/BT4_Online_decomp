@@ -1005,6 +1005,19 @@ void BtlChars_CheckRoundReset(void) {
             break;
         }
     }
+#ifdef PORT
+    if (any && TagBattle_Active()) {
+        /* TAG TEAM: a member that came in (a reinforcement, a revived player) starts its own round; the others go
+           on fighting where they are, and their attacks under way stay (the one-on-one reset puts everyone back
+           at the start and clears the effects: a whole room's fight would stop for one fighter) */
+        for (i = 0; i < BtlChar_GetCount(); i++) {
+            if (BtlChar_TestFlag(BtlChar_Get(i), 0xF9)) {
+                BtlChar_ResetRound(BtlChar_Get(i));
+            }
+        }
+        return;
+    }
+#endif
     if (any) {
         for (i = 0; i < BtlChar_GetCount(); i++) {
             BtlChar_ResetRound(BtlChar_Get(i));

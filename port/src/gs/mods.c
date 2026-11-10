@@ -819,6 +819,51 @@ static float hud_width(void) {
     return w > 0 && h > 0 ? MODS_HUD_H * (float)w / (float)h : MODS_HUD_H * 4.0f / 3.0f;
 }
 
+/* Historia cooperativa's HUD, drawn by the game itself whatever mods are on (src/battle/coop_infinite.c): the endless
+   mode's wave, and a fallen partner to revive. Same shapes as a mod's hud.fill / hud.text. */
+static void coop_fill(float x, float y, float w, float h, unsigned col, float r) {
+    ModsCmd *c = hud_cmd(MODS_CMD_FILL);
+    if (c != NULL) { c->f[0] = x; c->f[1] = y; c->f[2] = w; c->f[3] = h; c->color = col; c->f[4] = r; }
+}
+static void coop_text(float x, float y, const char *t, unsigned col, float size) {
+    size_t n = strlen(t);
+    ModsCmd *c;
+    if (sBuild.chars + n > MODS_HUD_CHARS || (c = hud_cmd(MODS_CMD_TEXT)) == NULL) return;
+    c->f[0] = x; c->f[1] = y; c->color = col; c->f[2] = size; c->align = 1;
+    c->color2 = 0x000000FFu; c->f[3] = 1.0f; c->f[4] = 1.5f; c->f[5] = 1.5f;
+    c->at = sBuild.chars; c->n = (unsigned)n;
+    memcpy(sBuild.text + sBuild.chars, t, n);
+    sBuild.chars += (unsigned)n;
+}
+static int coop_hud_wanted(const FpState *fp, const ModsGame *g) {
+    extern int CoopInf_Active(void), CoopRevive_AnyDown(void);
+    return fp->battle && g->battle && (CoopInf_Active() || CoopRevive_AnyDown());
+}
+static void coop_hud(const FpState *fp, const ModsGame *g) {
+    extern int CoopInf_Active(void), CoopInf_Wave(void), CoopInf_Defeated(void), CoopRevive_AnyDown(void);
+    extern float CoopRevive_Progress(void);
+    float w = hud_width(), cx = w / 2;
+    char line[96];
+
+    if (!coop_hud_wanted(fp, g)) return;
+    if (CoopInf_Active()) {
+        int wave = CoopInf_Wave() + 1, boss = wave % 5 == 0;
+        coop_fill(cx - 90, 6, 180, 38, 0x000000C8u, 6);
+        snprintf(line, sizeof(line), boss ? "OLEADA %d - JEFE" : "OLEADA %d", wave);
+        coop_text(cx, 10, line, boss ? 0xFF5B5BFFu : 0xFFD55BFFu, 16);
+        snprintf(line, sizeof(line), "%d derrotados", CoopInf_Defeated());
+        coop_text(cx, 29, line, 0xFFFFFFD8u, 10);
+    }
+    if (CoopRevive_AnyDown()) {
+        float p = CoopRevive_Progress(), y = MODS_HUD_H * 0.72f, bw = 280;
+        coop_fill(cx - bw / 2, y, bw, 42, 0x000000CDu, 6);
+        coop_text(cx, y + 4, p > 0 ? "REVIVIENDO..." : "¡Compañero caído! Fíjalo (L3), acércate y mantén GUARDIA",
+                  p > 0 ? 0x7CFF8FFFu : 0xFF8A5BFFu, 11);
+        coop_fill(cx - bw / 2 + 10, y + 26, bw - 20, 8, 0x3C3C3CE6u, 3);
+        if (p > 0) coop_fill(cx - bw / 2 + 10, y + 26, (bw - 20) * (p > 1 ? 1 : p), 8, 0x7CFF8FFFu, 3);
+    }
+}
+
 static void push_hud(lua_State *L) {
     static const luaL_Reg fns[] = {{"rect", l_hud_rect}, {"fill", l_hud_fill}, {"line", l_hud_line}, {"circle", l_hud_circle},
                                    {"disc", l_hud_disc}, {"gradient", l_hud_gradient}, {"poly", l_hud_poly},
@@ -1547,17 +1592,21 @@ void Mods_Tick(void) {
         sDirty = 0;
         settings_save();
     }
+    if (!PortPanels_Read(&fp)) {
+        memset(&fp, 0, sizeof(fp));
+    }
+    PortMods_Read(&g);
     if (sCount == 0) {
-        if (sHud.count != 0 || sHide != 0 || memcmp(&sLook, &kLookNone, sizeof(sLook)) != 0) { /* (the last mod gone: its shapes and look too) */
+        if (coop_hud_wanted(&fp, &g)) { /* (no mods: the game's co-op HUD alone) */
+            hud_begin();
+            coop_hud(&fp, &g);
+            hud_publish();
+        } else if (sHud.count != 0 || sHide != 0 || memcmp(&sLook, &kLookNone, sizeof(sLook)) != 0) { /* (the last mod gone: its shapes and look too) */
             hud_begin();
             hud_publish();
         }
         return;
     }
-    if (!PortPanels_Read(&fp)) {
-        memset(&fp, 0, sizeof(fp));
-    }
-    PortMods_Read(&g);
     hud_begin();
     for (i = 0; i < sCount; i++) {
         lua_State *L = sMod[i].L;
@@ -1579,6 +1628,7 @@ void Mods_Tick(void) {
         }
         lua_settop(L, 0);
     }
+    coop_hud(&fp, &g); /* (over the mods') */
     hud_publish();
 }
 

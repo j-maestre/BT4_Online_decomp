@@ -674,6 +674,8 @@ s32 PortScreen_Main(void) {
         /* Returning nonzero here starts a battle. Leave the menu dispatcher
            running and open the online hub after a room exit instead. */
         if(back==2)Port_TagClose();
+        { extern int PortCoop_Active(void);
+          if(back==2&&PortCoop_Active()){gPortScreen=PORT_SCREEN_COOP;gProgress->mode=80;result=0;break;} } /* (Historia cooperativa: "Leave" after the battle goes back to its screen) */
         if(back==1 || (Port_TagPhase()==2 && Port_TagResultChoice()==1)) {
             if(TeamSel_TagRun(2)){result=3;gProgress->mode=80;gPortScreen=PORT_SCREEN_TBO;break;}
         }}

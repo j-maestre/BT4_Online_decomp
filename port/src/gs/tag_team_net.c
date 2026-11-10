@@ -453,16 +453,16 @@ void Port_TagInitialTeams(int left,int right){configured_left=left;configured_ri
 static int coop_told_humans;static Uint64 coop_told_at; /* the chapter announced to the room (cleared by Port_TagClose) */
 /* The character select's cursors: the chooser sends the cell it is on ("#hov:<seat>:<col>:<row>" in the room's chat,
    hidden from the chat lines), so the others see it move as in a 1 vs 1 online select. */
-static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_sent_col=-1,hover_sent_row=-1,hover_sent_seat=-1;static Uint64 hover_sent_at;
-void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=-1;hover_sent_col=hover_sent_row=hover_sent_seat=-1;}
-int Port_TagHover(int seat,int *col,int *row){
-    if(seat<0||seat>=TT_MAX_PLAYERS||hover_col[seat]<0)return 0;*col=hover_col[seat];*row=hover_row[seat];return 1;}
-void Port_TagHoverSend(int seat,int col,int row){
+static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_chara[TT_MAX_PLAYERS],hover_sent_col=-1,hover_sent_row=-1,hover_sent_seat=-1,hover_sent_chara=-1;static Uint64 hover_sent_at;
+void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=-1;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
+int Port_TagHover(int seat,int *col,int *row,int *chara){
+    if(seat<0||seat>=TT_MAX_PLAYERS||hover_col[seat]<0)return 0;*col=hover_col[seat];*row=hover_row[seat];*chara=hover_chara[seat];return 1;}
+void Port_TagHoverSend(int seat,int col,int row,int chara){
     void Port_TagChatSend(const char*);char line[48];
-    if(col==hover_sent_col&&row==hover_sent_row&&seat==hover_sent_seat)return;
+    if(col==hover_sent_col&&row==hover_sent_row&&seat==hover_sent_seat&&chara==hover_sent_chara)return;
     if(SDL_GetTicks()-hover_sent_at<120)return; /* (a few a second at most: the next frame sends the latest) */
-    snprintf(line,sizeof(line),"#hov:%d:%d:%d",seat,col,row);Port_TagChatSend(line);
-    hover_sent_col=col;hover_sent_row=row;hover_sent_seat=seat;hover_sent_at=SDL_GetTicks();
+    snprintf(line,sizeof(line),"#hov:%d:%d:%d:%d",seat,col,row,chara);Port_TagChatSend(line);
+    hover_sent_col=col;hover_sent_row=row;hover_sent_seat=seat;hover_sent_chara=chara;hover_sent_at=SDL_GetTicks();
 }
 static void coop_arrange(void){
     extern int PortCoop_Active(void),PortCoop_FoeLevel(int),PortCoop_FoeCount(void);extern const char *PortCoop_AnnounceId(void);
@@ -854,8 +854,8 @@ void Port_TagPoll(void){
             for(j=0;j<159&&client.in[16+j];++j){unsigned char c=client.in[16+j];text[j]=c>=32&&c<127?c:'?';}text[j]=0;
 
             if(!strncmp(text,"#coop:",6)){extern void PortCoop_Announced(const char*);PortCoop_Announced(text+6);continue;} /* Historia cooperativa: the host's chapter */
-            if(!strncmp(text,"#hov:",5)){int s=-1,c=-1,r=-1; /* the character select: the cell the chooser is on (Port_TagHover) */
-                if(sscanf(text+5,"%d:%d:%d",&s,&c,&r)==3&&s>=0&&s<TT_MAX_PLAYERS&&c>=0&&c<64&&r>=0&&r<64){hover_col[s]=c;hover_row[s]=r;}
+            if(!strncmp(text,"#hov:",5)){int s=-1,c=-1,r=-1,f=-1; /* the character select: the cell the chooser is on, the fighter it shows (Port_TagHover) */
+                if(sscanf(text+5,"%d:%d:%d:%d",&s,&c,&r,&f)>=3&&s>=0&&s<TT_MAX_PLAYERS&&c>=0&&c<64&&r>=0&&r<64){hover_col[s]=c;hover_row[s]=r;hover_chara[s]=f>=0&&f<512?f:-1;}
                 continue;}
             if(seat>=0){if(chat_count==6){memmove(chat_lines,chat_lines+1,5*sizeof(chat_lines[0]));--chat_count;}
 

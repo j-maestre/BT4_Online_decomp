@@ -567,7 +567,7 @@ void BtlInput_Sample(BtlInputChr *chr) {
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_HUD_SWEEP") && BtlChar_TestFlag(chr,3) && BtlChar_FrameMod(30)==0)targetPressed|=PAD_L3;
         if(targetPressed & PAD_L3){
             extern s32 TagBattle_Target(s32 actor);
-            TagBattle_CycleTarget(chr->player);
+            {extern void TagBattle_CycleTargetInput(s32);TagBattle_CycleTargetInput(chr->player);} /* (a fallen partner can be locked on too) */
             if(getenv("BT4_TAG_TARGET_TEST"))fprintf(stderr,"tag target: actor %d now targets %d through L3 input\n",chr->player,TagBattle_Target(chr->player));
         }
     }

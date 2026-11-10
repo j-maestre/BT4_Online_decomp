@@ -194,7 +194,10 @@ static struct Drill {
 void PortDrill_BeginMatch(int offline) {
     extern int Port_Setting(const char *, int);
     int i;
-    sDrillOn = offline && (sDrillForced || Port_Setting("train_drill", 0) != 0);
+    extern int Battle_GetMode(void);
+    /* the drill from Entrenamiento avanzado, or F1's switch in a training battle only (mode 6): never in the story or
+       a versus battle, where the CPU fights with its own AI */
+    sDrillOn = offline && (sDrillForced || (Port_Setting("train_drill", 0) != 0 && Battle_GetMode() == 6));
     sDrillMix = Port_Setting("train_drill_mix", 0);
     sDrillRest = Port_Setting("train_drill_rest", 30);
     if (sDrillRest < 10) sDrillRest = 10;
