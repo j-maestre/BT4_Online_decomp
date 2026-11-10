@@ -450,11 +450,18 @@ void Port_TagInitialTeams(int left,int right){configured_left=left;configured_ri
 /* Historia cooperativa (port/src/coop_story.c), on the host, after each room state while the lobby is open: the
    joining friend lands on the first free seat (team 1, the rivals' side: Tt_Join), so they are moved to team 0, and
    team 1's seats are the chapter's CPUs at the chapter's difficulty. One command per state. */
+static int coop_told_humans;static Uint64 coop_told_at; /* the chapter announced to the room (cleared by Port_TagClose) */
 static void coop_arrange(void){
-    extern int PortCoop_Active(void),PortCoop_FoeLevel(int);
-    int Port_TagMovePlayer(int from,int to),Port_TagSlot(int seat,int cpu,int difficulty);
-    int i,j,k,cap=Tt_Capacity(&state);
+    extern int PortCoop_Active(void),PortCoop_FoeLevel(int);extern const char *PortCoop_AnnounceId(void);
+    int Port_TagMovePlayer(int from,int to),Port_TagSlot(int seat,int cpu,int difficulty);void Port_TagChatSend(const char*);
+    int i,j,k,cap=Tt_Capacity(&state),humans=0;
     if(!PortCoop_Active()||cap!=4||state.phase!=TT_LOBBY||member!=state.host)return;
+    /* the joiner chose only "Join": tell it the chapter, when someone arrives and every few seconds after */
+    for(i=0;i<cap;++i)if(state.players[i].member&&!state.players[i].cpu)++humans;
+    if(humans>1&&PortCoop_AnnounceId()&&(humans!=coop_told_humans||SDL_GetTicks()-coop_told_at>4000)){
+        char line[64];snprintf(line,sizeof(line),"#coop:%s",PortCoop_AnnounceId());Port_TagChatSend(line);
+        coop_told_humans=humans;coop_told_at=SDL_GetTicks();
+    }
     for(i=0;i<cap;++i)if(state.players[i].member&&!state.players[i].cpu&&state.players[i].team==1)
         for(j=0;j<cap;++j)if(state.players[j].team==0&&(!state.players[j].member||state.players[j].cpu)){Port_TagMovePlayer(i,j);return;}
     for(i=0,k=0;i<cap;++i){
@@ -464,7 +471,7 @@ static void coop_arrange(void){
         }
         ++k;
     }
-    for(i=0;i<cap;++i)if(state.players[i].team==0&&state.players[i].cpu){Port_TagSlot(i,0,2);return;} /* (the friend's seat stays free) */
+    /* (a CPU partner in the players' team is the host's choice: the friend takes its seat on arrival, above) */
 }
 
 /* The room's load digest is a match-setup checksum, not a language or UI checksum.
@@ -610,7 +617,7 @@ int Port_TagConnect(const char *server){
 
 }
 
-void Port_TagClose(void){if(peer_mode)TagPeer_Close();peer_mode=0;Port_TagWaitResumed();TagDirect_Close();tag_direct_supported=tag_direct_ticket=tag_direct_route=0;tag_direct_ticket_at=0;PortVoice_Leave(2);voice_ticket=0;voice_ticket_at=0;Port_TagMenuSet(0,0);Port_TagWaitClear();TagWs_Close();ws_mode=ws_started=0;ws_endpoint[0]=0;channel_close(&client);memset(&state,0,sizeof(state));memset(&received,0,sizeof(received));member=0;configure_pending=chat_count=cancel_pending=0;room_code[0]=error[0]=0;connecting=0;local_room=0;tag_caps_sent=tag_paced=tag_input_sent=tag_sync_count=0;tag_ping=-1;tag_ping_ack=0;tag_ping_at=0;tag_delay_margin=1;tag_delay_clean_frames=0;tag_delay_feedback_seen=0;tag_delay_adjusted=0;tag_pending_buttons=tag_pending_l3=tag_pending_skip=0;tag_ping_count=tag_ping_cursor=0;tag_received_valid=0;SDL_SetAtomicInt(&tag_catchup,0);}
+void Port_TagClose(void){if(peer_mode)TagPeer_Close();peer_mode=0;Port_TagWaitResumed();TagDirect_Close();tag_direct_supported=tag_direct_ticket=tag_direct_route=0;tag_direct_ticket_at=0;PortVoice_Leave(2);voice_ticket=0;voice_ticket_at=0;Port_TagMenuSet(0,0);Port_TagWaitClear();TagWs_Close();ws_mode=ws_started=0;ws_endpoint[0]=0;channel_close(&client);memset(&state,0,sizeof(state));memset(&received,0,sizeof(received));member=0;configure_pending=chat_count=cancel_pending=0;coop_told_humans=0;coop_told_at=0;room_code[0]=error[0]=0;connecting=0;local_room=0;tag_caps_sent=tag_paced=tag_input_sent=tag_sync_count=0;tag_ping=-1;tag_ping_ack=0;tag_ping_at=0;tag_delay_margin=1;tag_delay_clean_frames=0;tag_delay_feedback_seen=0;tag_delay_adjusted=0;tag_pending_buttons=tag_pending_l3=tag_pending_skip=0;tag_ping_count=tag_ping_cursor=0;tag_received_valid=0;SDL_SetAtomicInt(&tag_catchup,0);}
 
 int Port_TagReselect(void){
 
@@ -833,6 +840,7 @@ void Port_TagPoll(void){
 
             for(j=0;j<159&&client.in[16+j];++j){unsigned char c=client.in[16+j];text[j]=c>=32&&c<127?c:'?';}text[j]=0;
 
+            if(!strncmp(text,"#coop:",6)){extern void PortCoop_Announced(const char*);PortCoop_Announced(text+6);continue;} /* Historia cooperativa: the host's chapter */
             if(seat>=0){if(chat_count==6){memmove(chat_lines,chat_lines+1,5*sizeof(chat_lines[0]));--chat_count;}
 
                 snprintf(chat_lines[chat_count++],192,"%s: %s",state.players[seat].name,text);}

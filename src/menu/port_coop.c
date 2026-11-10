@@ -1,9 +1,9 @@
 /*
  * PC only: "Historia cooperativa" (co-op story), a screen of the port's own reached from the main menu
  * (src/menu/menu_a.c, item MAINMENU_COOP). The chapters come from historia_coop/capitulos.lua (port/src/coop_story.c).
- * Two pages: the list of chapters, and a chapter (its story, the rivals) with "Make the room" and "Join by code".
- * Either leaves for the online screens (src/menu/port_tbo.c, gPortTboCoop) with the chapter chosen: the room is an
- * ordinary Tag Team room whose content fingerprint carries the chapter, so only the same chapter can join.
+ * Three pages: Make a room / Join a room; the list of chapters; a chapter (its story, the rivals) with "Make the room".
+ * Both leave for the online screens (src/menu/port_tbo.c, gPortTboCoop): the room is an ordinary Tag Team room whose
+ * content fingerprint carries capitulos.lua; the joiner learns the chapter from the host (port/src/coop_story.c).
  * (ASCII only in this file: the build's pointer tool reads it by byte offset. Accents are octal escapes.)
  */
 #include "common.h"
@@ -25,18 +25,20 @@ extern void Port_MenuPage(int screen);
 extern int Port_PageAspectMilli(void);
 
 extern int PortCoop_Load(void), PortCoop_Count(void), PortCoop_Selected(void), PortCoop_Done(int i);
-extern void PortCoop_Select(int i);
+extern void PortCoop_Select(int i), PortCoop_JoinBegin(void);
+extern int PortCoop_Joining(void);
 extern const char *PortCoop_Error(void);
 extern const char *PortCoop_ChTitle(int i), *PortCoop_ChSaga(int i), *PortCoop_ChPair(int i), *PortCoop_ChIntro(int i);
 extern const char *PortCoop_ChFoeName(int i, int k);
 extern int PortCoop_ChFoeChara(int i, int k), PortCoop_ChFoeLevel(int i, int k), PortCoop_ChFoeHealth(int i, int k);
 extern s32 gPortTboCoop;
+char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
-enum { CO_LIST, CO_CHAPTER };
+enum { CO_START, CO_LIST, CO_CHAPTER };
 #define CO_ROWS 7 /* chapters on the list at once */
 
 typedef struct CoopScreen {
-    s32 page, cur, top, act;
+    s32 page, cur, top, act, start;
     s32 frames, pageFrom;
     s32 leaving, go;
     void *winRes;
@@ -107,6 +109,29 @@ static char *Co_Level(s32 level) {
 }
 
 /* ---------------------------------------------------------------------------------------------- input */
+static void Co_Leave(s32 go) {
+    sCo->go = go;
+    sCo->leaving = 1;
+    ColorFade_StartOut(0, 0, 0, 0x14);
+}
+
+static void Co_StartUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, "Confirmar");
+    Ps_Prompt(2, "Volver");
+    Ps_Move(&sCo->start, 2);
+    if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
+        Snd_PlaySe(1, 1);
+        gPortCoopNote[0] = 0;
+        if (sCo->start == 0) Co_SetPage(CO_LIST);
+        else { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
+    } else if (pad->gamePressed & PADG_TRIANGLE) {
+        Snd_PlaySe(1, 2);
+        Co_Leave(0);
+    }
+}
+
 static void Co_ListUpdate(void) {
     Pad *pad = &gPad[0];
     s32 count = PortCoop_Count();
@@ -125,8 +150,7 @@ static void Co_ListUpdate(void) {
         Co_SetPage(CO_CHAPTER);
     } else if (pad->gamePressed & (PADG_TRIANGLE | ((count == 0) ? PADG_CROSS : 0))) {
         Snd_PlaySe(1, 2);
-        sCo->leaving = 1;
-        ColorFade_StartOut(0, 0, 0, 0x14);
+        Co_SetPage(CO_START);
     } else if (pad->gamePressed & PADG_SQUARE) { /* the file read again (after editing it) */
         Snd_PlaySe(1, 0);
         PortCoop_Load();
@@ -137,16 +161,13 @@ static void Co_ListUpdate(void) {
 static void Co_ChapterUpdate(void) {
     Pad *pad = &gPad[0];
 
-    Ps_Prompt(0, "Confirmar");
+    Ps_Prompt(0, "Crear sala");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->act, 2);
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         PortCoop_Select(sCo->cur);
-        gPortTboCoop = sCo->act == 0 ? 1 : 2;
-        sCo->go = 1;
-        sCo->leaving = 1;
-        ColorFade_StartOut(0, 0, 0, 0x14);
+        gPortTboCoop = 1;
+        Co_Leave(1);
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
         Co_SetPage(CO_LIST);
@@ -217,7 +238,17 @@ static void Co_Draw(void) {
     Co_Backdrop();
     IconWin_Draw();
     PortOnline_Raw(1);
-    if (sCo->page == CO_LIST) {
+    if (sCo->page == CO_START) {
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
+        Co_Wrap(50.0f + slide, 82.0f, "T\303\272 y un amigo, cada uno en su casa, contra los rivales de la CPU de cada cap\303\255tulo. "
+                "Uno crea la sala y elige el cap\303\255tulo; el otro se une con el c\303\263digo.", 0.55f, 410.0f, 20.0f, 4, 0);
+        Co_Row(60.0f + slide, 320.0f + slide, 180.0f, "Crear sala", NULL, sCo->start == 0, 3);
+        Co_Row(60.0f + slide, 320.0f + slide, 212.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
+        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 256.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
+        box = sCo->start == 0
+            ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
+            : "Escribe el c\303\263digo que te d\303\251 tu amigo. El cap\303\255tulo lo elige quien crea la sala.";
+    } else if (sCo->page == CO_LIST) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
         if (count == 0) {
             Co_Wrap(50.0f + slide, 100.0f, PortCoop_Error(), 0.55f, 400.0f, 20.0f, 6, 4);
@@ -251,11 +282,8 @@ static void Co_Draw(void) {
             Ps_Text(50.0f + slide, 216.0f + 18.0f * k, k == 0 ? "Rivales:" : "", 0.5f, 80.0f, 2);
             Ps_Text(120.0f + slide, 216.0f + 18.0f * k, line, 0.5f, 340.0f, 0);
         }
-        Co_Row(60.0f + slide, 300.0f + slide, 262.0f, "Crear sala (anfitri\303\263n)", NULL, sCo->act == 0, 3);
-        Co_Row(60.0f + slide, 300.0f + slide, 294.0f, "Unirse con c\303\263digo", NULL, sCo->act == 1, 3);
-        box = sCo->act == 0
-            ? "Crea la sala y dale el c\303\263digo a tu amigo. Tiene que elegir este mismo cap\303\255tulo y \"Unirse con c\303\263digo\"."
-            : "Escribe el c\303\263digo que te d\303\251 tu amigo. Los dos ten\303\251is que tener el mismo archivo de cap\303\255tulos.";
+        Co_Row(60.0f + slide, 300.0f + slide, 262.0f, "Crear sala", NULL, 1, 3);
+        box = "Crea la sala y dale el c\303\263digo a tu amigo: \303\251l solo tiene que elegir \"Unirse a una sala\".";
     }
     PortOnline_Raw(0);
     MsgWin_PortDrawStringHd(Co_Box(box));
@@ -264,14 +292,16 @@ static void Co_Draw(void) {
 /* ---------------------------------------------------------------------------------------------- the frame loop */
 /* Returns 1 when left for the online screens (gPortTboCoop says what to do there), 0 back to the main menu. */
 s32 PortCoop_Run(void) {
-    s32 go, before = PortCoop_Selected();
+    s32 go, before = PortCoop_Selected(), joined = PortCoop_Joining();
 
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
-    if (before >= 0 && before < PortCoop_Count()) {
+    if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
+    else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on the list */
         sCo->cur = before;
         sCo->top = before >= CO_ROWS ? before - CO_ROWS + 1 : 0;
+        sCo->page = CO_LIST;
     }
     PortCoop_Select(-1); /* (an ordinary room until a chapter is chosen again) */
     Co_WinInit();
@@ -287,7 +317,8 @@ s32 PortCoop_Run(void) {
         live = !sCo->leaving && ColorFade_IsInDone();
         Ps_PromptsClear();
         if (live) {
-            if (sCo->page == CO_LIST) Co_ListUpdate();
+            if (sCo->page == CO_START) Co_StartUpdate();
+            else if (sCo->page == CO_LIST) Co_ListUpdate();
             else Co_ChapterUpdate();
         }
         Port_MenuPage(52);

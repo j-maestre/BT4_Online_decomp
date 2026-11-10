@@ -304,6 +304,9 @@ static int entry(void*){
         }
         if(have){
             Sj reply;bool admit=bt4route::admission(job.op),blocked=false;
+            /* (fork) A code typed with the letter O for the zero that starts the reserve route's codes: legacy codes
+               are always on the primary route, so with the reserve active a leading O can only mean 0. */
+            if(job.op=="join"&&activeProject==1){auto code=str(job.args,"code");if(code.size()==6&&(code[0]=='O'||code[0]=='o')){code[0]='0';job.args["code"]=code;}}
             if((job.project>=0&&job.project!=activeProject)||
                 (!job.generation.empty()&&job.generation!=pinnedGeneration&&job.op!="leave"&&job.op!="ranked_report"&&job.consumer!=5)){
                 reply={{"error","ROOM_ROUTE_EXPIRED"}};blocked=true;

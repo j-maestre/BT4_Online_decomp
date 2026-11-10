@@ -153,20 +153,35 @@ const char *PortCoop_Error(void) { return sError; }
 int PortCoop_Count(void) { return sCount; }
 const PortCoopChapter *PortCoop_Get(int i) { return i >= 0 && i < sCount ? &sCh[i] : NULL; }
 
-/* The chapter the room is for (-1: none, an ordinary Tag Team room). */
-void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; }
+/* The chapter the room is for (-1: none, an ordinary Tag Team room). sJoining: Join by code was chosen in the co-op
+   screen; the chapter is not known yet and comes from the host (PortCoop_Announced, through the room's chat). */
+static int sJoining;
+void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; sJoining = 0; }
+void PortCoop_JoinBegin(void) { sSelected = -1; sOutcome = 0; sJoining = 1; }
 int PortCoop_Selected(void) { return sSelected; }
-int PortCoop_Active(void) { return sSelected >= 0; }
+int PortCoop_Active(void) { return sSelected >= 0 || sJoining; }
+int PortCoop_Joining(void) { return sJoining; }
 
-/* The room's content fingerprint for the chosen chapter. */
+/* The room's content fingerprint: both players must have the same capitulos.lua (not the same chapter: the joiner
+   learns it from the host). */
 unsigned long long PortCoop_MixContent(unsigned long long base) {
     unsigned long long h;
-    const char *s;
-    if (sSelected < 0) return base;
-    h = sFileHash ^ 0xC0035709ull;
-    for (s = sCh[sSelected].id; *s; s++) h = (h ^ (unsigned char)*s) * 0x100000001B3ull;
-    h = (h ^ (unsigned)sSelected) * 0x100000001B3ull;
+    if (!PortCoop_Active()) return base;
+    h = (sFileHash ^ 0xC0035709ull) * 0x100000001B3ull;
     return base ^ h ^ (h << 29);
+}
+
+/* The host's announcement, "#coop:<id>", sent in the room's chat (port/src/gs/tag_team_net.c). */
+const char *PortCoop_AnnounceId(void) { return sSelected >= 0 ? sCh[sSelected].id : NULL; }
+void PortCoop_Announced(const char *id) {
+    int i;
+    if (!sJoining || !id) return;
+    for (i = 0; i < sCount; i++)
+        if (!strcmp(sCh[i].id, id)) {
+            if (sSelected != i) { sSelected = i; sOutcome = 0; fprintf(stderr, "coop: the host's chapter is %s\n", id); }
+            return;
+        }
+    fprintf(stderr, "coop: the host's chapter %s is not in this capitulos.lua\n", id);
 }
 
 static const PortCoopFoe *foe(int k) { return sSelected >= 0 && k >= 0 && k < 2 ? &sCh[sSelected].foe[k] : NULL; }

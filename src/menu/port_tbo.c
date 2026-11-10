@@ -477,6 +477,7 @@ s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparrin
 s32 gPortTboCoop;       /* Historia cooperativa (menu/port_coop.c): 1 make the chapter's room, 2 open Join by code */
 extern int PortCoop_Active(void),PortCoop_Time(void);
 extern const char *PortCoop_TakeOutcome(void),*PortCoop_Title(void);
+extern char gPortCoopNote[160]; /* menu/port_coop.c: shown there when a room could not be made */
 static char sTbBgCode[CODE_LEN + 1];
 static f32 Tb_Beat(s32 period);
 /* A format with a number in it ("%d FRAME") in the chosen language, for sprintf (the translation file's line keeps
@@ -1126,11 +1127,17 @@ static void Tb_TagUpdate(s32 live){
     Port_SettingSave("tag_team_difficulty",sTb->tagDifficulty);Port_SettingsWrite();sTb->tagRoomCur=0;
     Tb_SetMode(TB_TAG_ROOM);
 }
+/* Historia cooperativa: a room that could not be made sends back to its screen, with the reason there */
+static void Tb_CoopFail(const char *why){
+    Ps_Copy(gPortCoopNote,(char*)(why&&why[0]?why:"No se pudo crear la sala. Vuelve a intentarlo."),160);
+    fprintf(stderr,"coop: back to the co-op screen: %s\n",gPortCoopNote);
+    Port_TagClose();sTb->leaving=1;ColorFade_StartOut(0,0,0,0x14);
+}
 static void Tb_CoopCreate(void){
     unsigned long long content=0;
-    if(!Tb_Vanilla(0)||Port_TagDataFingerprint(&content)!=1)return;
+    if(!Tb_Vanilla(0)||Port_TagDataFingerprint(&content)!=1){Tb_CoopFail("Esta versi\303\263n no es compatible con el online.");return;}
     Port_TagCPUOptions(0,2);
-    if(!Port_TagConnect(Port_TagEndpoint())){Tb_Note((char*)Port_TagError());return;}
+    if(!Port_TagConnect(Port_TagEndpoint())){Tb_CoopFail(Port_TagError());return;}
     Port_TagModeOptions(0,0);sTb->tagQuick=0;sTb->tagQuickStarted=0;
     Port_TagInitialTeams(2,2);
     Port_TagOpen(5,PortCoop_Time(),0,Port_NetNameGet(),content);
@@ -1145,7 +1152,7 @@ static void Tb_CoopPending(s32 live){
     if(sTb->nicknameState!=BT4_NICKNAME_READY&&sTb->nicknameState!=BT4_NICKNAME_OPTIONAL&&
        sTb->nicknameState!=BT4_NICKNAME_DISABLED){
         if(sTb->nicknameState==BT4_NICKNAME_UNAVAILABLE){sTbCoopWant=0;Port_OnlineNicknameBegin();
-            Tb_Note("No se pudo comprobar tu apodo online. Vuelve a intentarlo.");}
+            Tb_CoopFail("No se pudo comprobar tu apodo online. Vuelve a intentarlo.");}
         return;
     }
     sTbCoopWant=0;
@@ -1158,7 +1165,8 @@ static void Tb_TagRoomUpdate(s32 live){
     {const char *outcome=PortCoop_TakeOutcome();if(outcome)Tb_Say(outcome);} /* a chapter's closing or defeat line */
     if(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6)){
         char why[128];Ps_Copy(why,(char*)Port_TagError(),128);Port_TagClose();
-        sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(sTb->tagJoin?TB_JOIN:PortCoop_Active()?TB_HUB:TB_TAG);Tb_Note(why);return;
+        if(PortCoop_Active()&&!sTb->tagJoin){Tb_CoopFail(why);return;}
+        sTb->tagSetup=0;sTb->tagCur=0;Tb_SetMode(sTb->tagJoin?TB_JOIN:TB_TAG);Tb_Note(why);return;
     }
     if(sTb->tagQuick&&Port_TagPhase()<1){
         Ps_Prompt(2,"Cancel");
@@ -4817,7 +4825,7 @@ s32 PortTbo_Run(void) {
     if(gPortTboCoop){ /* Historia cooperativa (menu/port_coop.c): done once the online nickname is known (Tb_CoopPending) */
         sTbCoopWant=gPortTboCoop;
         gPortTboCoop=0;
-        Tb_Note("Comprobando tu apodo online...");
+
     }
     if (getenv("BT4_RENDER_TBO") != NULL) {
         const char *which = getenv("BT4_RENDER_TBO");
@@ -4944,7 +4952,7 @@ s32 PortTbo_Run(void) {
         Port_LobbyView(&sTbLv);
         if (getenv("BT4_RENDER_TBO") == NULL || communityTest || (getenv("BT4_RENDER_TEST")&&getenv("BT4_TBO_TOP_INPUT_TEST"))) switch (sTb->mode) {
         case TB_HUB:
-            Tb_HubUpdate(live);
+            if(!sTbCoopWant)Tb_HubUpdate(live); /* (Historia cooperativa: covered until its room is made) */
             break;
         case TB_RANKED:
             Tb_RankedUpdate(live);
@@ -4995,7 +5003,12 @@ s32 PortTbo_Run(void) {
         IconWin_Draw(); /* the clouds in the corners, the emblem, the line under the title */
         Tb_Draw();
         Tb_DrawText();
-        if (sTb->mode == TB_HUB) Tb_DrawCommunityButton(live);
+        if (sTbCoopWant && sTb->mode == TB_HUB) { /* Historia cooperativa: a plain page while the room is prepared */
+            Ps_Rect(Ps_Left() - 200.0f, 0.0f, 712.0f, 448.0f, Ps_Rgba(0, 0, 0, 0x80), Ps_Rgba(0, 0, 0, 0x80));
+            Ps_Align(1);
+            Ps_Text(256.0f, Ps_TextTop(224.0f, 0.7f), "Conectando con el servidor...", 0.7f, 400.0f, 0);
+            Ps_Align(0);
+        } else if (sTb->mode == TB_HUB) Tb_DrawCommunityButton(live);
         else Ps_PromptsDraw();
         ColorFade_Draw();
         Port_MenuPage(0);
