@@ -14,6 +14,7 @@ Hace, por orden:
 
 Opciones:  --sin-compilar  usa port/build tal como esta (el numero de version tiene que ser el mismo)
            --sin-subir     solo monta y firma el zip (en port/build/publicar/)
+           --sin-instalar  no copia el ejecutable nuevo a BT4-entrenador
 """
 import argparse, base64, hashlib, json, os, pathlib, shutil, subprocess, sys, urllib.request, urllib.error, zipfile
 
@@ -126,6 +127,7 @@ def main():
     ap.add_argument("notas", nargs="?", default="")
     ap.add_argument("--sin-compilar", action="store_true")
     ap.add_argument("--sin-subir", action="store_true")
+    ap.add_argument("--sin-instalar", action="store_true", help="no copia el ejecutable a BT4-entrenador")
     a = ap.parse_args()
     if not KEY.exists():
         sys.exit(f"Falta la clave privada: {KEY}")
@@ -135,7 +137,8 @@ def main():
     s = sign(z)
     if not a.sin_subir:
         publish(a.version, a.notas or f"Version {a.version}", [z, s])
-    install_local()
+    if not a.sin_instalar:
+        install_local()
 
 
 if __name__ == "__main__":
