@@ -123,7 +123,7 @@ s32 CoopInf_ScaleDamage(BtlMemberChr *chr, s32 amount) {
  * member: the fallen one gets up. All from the fighters' positions and their buttons, which online play shares.
  * ---------------------------------------------------------------------------------------------------------------- */
 #define REVIVE_TICKS 90     /* held this long (the battle's 30 steps a second): three seconds */
-#define REVIVE_RANGE 40.0f  /* this close (the battle's units: the fighters start some 40 apart) */
+#define REVIVE_RANGE 120.0f /* this close (the battle's units: the fighters start some 40 apart) */
 #define REVIVE_HEALTH 40.0f /* %, of the fighter's own maximum */
 
 extern s32 BtlCharApi_GetHp(s32 actor);
@@ -201,6 +201,36 @@ s32 CoopRevive_IsDown(s32 d) {
 
 /* For the HUD (mods: game.coop_down, game.coop_revive): a player of the team is down (and can be revived); the
    furthest revive under way, 0..1. */
+/* From fighter `from`: the nearest fallen partner's distance (in the battle's units) and its bearing (radians, 0 ahead
+   of the fighter's camera, positive to the right); 0 without one. */
+s32 CoopRevive_Guide(s32 from, f32 *dist, f32 *bearing) {
+    extern void BtlCharApi_GetCamPose(s32 objId, f32 *pos, f32 *rot);
+    extern s32 BattleSide_GetObjId(s32 side);
+    extern f32 sqrtf(f32), atan2f(f32, f32);
+    f32 pf[4], pd[4], eye[4], rot[4], best = -1.0f, dx, dz, d, a;
+    s32 i;
+
+    if (!sRevOn || from < 0 || from >= TagBattle_Count() || BtlCharApi_GetHp(from) <= 0) return 0;
+    BtlCharApi_GetPos(from, pf);
+    BtlCharApi_GetCamPose(BattleSide_GetObjId(from), eye, rot);
+    for (i = 0; i < TagBattle_Count() && i < 10; i++) {
+        if (i == from || !CoopRevive_IsDown(i)) continue;
+        BtlCharApi_GetPos(i, pd);
+        dx = pd[0] - pf[0]; dz = pd[2] - pf[2];
+        d = sqrtf(dx * dx + dz * dz);
+        if (best >= 0.0f && d >= best) continue;
+        best = d;
+        a = atan2f(dx, dz) - rot[1]; /* (the camera's yaw: the same turn as TagBattle_TargetDirection) */
+        while (a > 3.14159265f) a -= 6.2831853f;
+        while (a < -3.14159265f) a += 6.2831853f;
+        *bearing = a;
+    }
+    if (best < 0.0f) return 0;
+    *dist = best;
+    return 1;
+}
+s32 CoopRevive_Range(void) { return (s32)REVIVE_RANGE; }
+
 s32 CoopRevive_AnyDown(void) {
     s32 d;
 

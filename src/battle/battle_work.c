@@ -172,8 +172,6 @@ s32 TagBattle_Target(s32 actor) {
     if(!TagBattle_Active() || actor<0 || actor>=sTagActors)return actor^1;
     if(sTagPairs[actor]>=0)return sTagPairs[actor];
     target=sTagTargets[actor];
-    {extern s32 CoopRevive_IsDown(s32); /* Historia cooperativa: a fallen partner locked on to, to go and revive it */
-     if(target>=0&&target<sTagActors&&target!=actor&&TagBattle_Allied(target,actor)&&CoopRevive_IsDown(target))return target;}
     if(target<0 || target>=sTagActors || TagBattle_Allied(target,actor))target=TagBattle_FirstEnemy(actor);
     return target;
 }
@@ -192,8 +190,7 @@ void TagBattle_CycleTarget(s32 actor) {
     if(actor<0||actor>=sTagActors)return;
     {s32 action=BtlAct_GetCurrent(BtlChar_Get(actor));if(action>=0xB4&&action<=0xBF)return;}
     for(i=1;i<=sTagActors;++i){s32 target=(old+i)%sTagActors;extern s32 CoopRevive_IsDown(s32);
-        if((!TagBattle_Allied(target,actor) && BtlCharApi_GetHp(target)>0) ||
-           (sTagCycleAllies && target!=actor && TagBattle_Allied(target,actor) && CoopRevive_IsDown(target))){ /* (a fallen partner too, by the player's own lock-on button) */
+        if(!TagBattle_Allied(target,actor) && BtlCharApi_GetHp(target)>0){
             sTagTargets[actor]=target;
             if(actor==0 && target!=old && BtlCharApi_GetHp(old)<=0 && getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_KO_TEST"))
                 fprintf(stderr,"tag auto target: actor=0 old=%d target=%d\n",old,target);
@@ -266,6 +263,7 @@ s32 TagBattle_ConfigureLocal(void) {
         }
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_SPECTATOR_TEST") && i==0)health=1.0f;
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_INF_TOUGH") && Port_TagTeam(i)==0)health=2000.0f; /* (test: players that last) */
+        if(getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_REVIVE_LOWPAD") && i==0)health=1.0f; /* (test: the pad's fighter falls) */
         /* Hidden renderer regression: two low-health fighters let real CPU
          * attacks exercise KO portraits, alive counts and automatic retargeting. */
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_KO_TEST")){

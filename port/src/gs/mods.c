@@ -857,8 +857,16 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
     if (CoopRevive_AnyDown()) {
         float p = CoopRevive_Progress(), y = MODS_HUD_H * 0.72f, bw = 280;
         coop_fill(cx - bw / 2, y, bw, 42, 0x000000CDu, 6);
-        coop_text(cx, y + 4, p > 0 ? "REVIVIENDO..." : "¡Compañero caído! Fíjalo (L3), acércate y mantén GUARDIA",
-                  p > 0 ? 0x7CFF8FFFu : 0xFF8A5BFFu, 11);
+        extern int CoopRevive_Guide(int from, float *dist, float *bearing), CoopRevive_Range(void), TagBattle_LocalActor(void);
+        float dist = 0, bearing = 0;
+        if (p > 0) coop_text(cx, y + 4, "REVIVIENDO... (no sueltes GUARDIA)", 0x7CFF8FFFu, 11);
+        else if (CoopRevive_Guide(TagBattle_LocalActor(), &dist, &bearing)) {
+            const char *way = bearing > 2.36f || bearing < -2.36f ? "detrás de ti" : bearing > 0.79f ? "a tu derecha" :
+                              bearing < -0.79f ? "a tu izquierda" : "delante";
+            if (dist <= CoopRevive_Range()) snprintf(line, sizeof(line), "¡Compañero caído %s! Mantén GUARDIA para revivirlo", way);
+            else snprintf(line, sizeof(line), "¡Compañero caído! Está %s, a %d m: acércate", way, (int)(dist - CoopRevive_Range()) / 10 + 1);
+            coop_text(cx, y + 4, line, dist <= CoopRevive_Range() ? 0x7CFF8FFFu : 0xFF8A5BFFu, 11);
+        } else coop_text(cx, y + 4, "¡Compañero caído! Tu compañero puede revivirte", 0xFF8A5BFFu, 11);
         coop_fill(cx - bw / 2 + 10, y + 26, bw - 20, 8, 0x3C3C3CE6u, 3);
         if (p > 0) coop_fill(cx - bw / 2 + 10, y + 26, (bw - 20) * (p > 1 ? 1 : p), 8, 0x7CFF8FFFu, 3);
     }
