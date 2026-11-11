@@ -460,6 +460,11 @@ static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS];
 int Port_TagSeatLevel(int seat){
     extern int PortCoop_Active(void),PortRpg_PickLevel(void);
     if(!PortCoop_Active()||seat<0||seat>=TT_MAX_PLAYERS||seat>=Tt_Capacity(&state)||state.players[seat].cpu||state.players[seat].chara<0)return 0;
+    /* only when every other player told its own (a copy without levels never does): then both machines use the
+       levels, otherwise neither does, and the battle is the same on both */
+    {int i;for(i=0;i<Tt_Capacity(&state);++i){
+        if(i==Tt_Seat(&state,member)||state.players[i].cpu||state.players[i].chara<0||!state.players[i].member)continue;
+        if(lv_chara[i]!=state.players[i].chara)return 0;}}
     if(seat==Tt_Seat(&state,member))return PortRpg_PickLevel();
     return lv_chara[seat]==state.players[seat].chara?lv_level[seat]:0;
 }
@@ -521,7 +526,7 @@ static uint64_t tag_load_digest(const TtRoom *r){
         hash=tag_load_digest_word(hash,(uint32_t)p->cpu);
         hash=tag_load_digest_word(hash,(uint32_t)p->difficulty);
         hash=tag_load_digest_word(hash,(uint32_t)p->confirmed);
-        hash=tag_load_digest_word(hash,(uint32_t)Port_TagSeatLevel(i)); /* (the co-op levels: both machines must agree) */
+        {int lv=Port_TagSeatLevel(i);if(lv)hash=tag_load_digest_word(hash,0x4C560000u|(uint32_t)lv);} /* (the co-op levels: both machines must agree; none, the digest of a copy without them) */
     }
     return hash;
 }

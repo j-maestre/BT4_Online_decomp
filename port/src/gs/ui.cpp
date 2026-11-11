@@ -87,6 +87,7 @@ const char *PortSongs_Dir(void);                           // plat_songs.c
 const char *PortSongs_Name(int index);
 int PortSongs_Count(void);
 int Port_Setting(const char *name, int def);   // plat_settings.c
+int Mods_FolderEnabled(const char *folder);     // gs/mods.c
 void Port_SettingSave(const char *name, int value);
 void Port_SettingText(const char *name, const char *def, char *out, int size);
 void Port_SettingTextSave(const char *name, const char *value);
@@ -2652,15 +2653,24 @@ static void tech_tab(void) {
     // Defence drill (port/src/mods_game.c): the CPU attacks without a break; read when a fight starts.
     bool drill=Port_Setting("train_drill",0)!=0;
     if(ImGui::Checkbox("Entrenamiento de esquiva: la CPU ataca sin parar",&drill)){Port_SettingSave("train_drill",drill);Port_SettingsWrite();}
-    ImGui::SetItemTooltip("%s","Solo combates offline. Se aplica al empezar el siguiente combate. La CPU deja de defenderse y lanza ataques seguidos para practicar la esquiva con circulo (el mod Entrenador de defensa te dice si fue a tiempo).");
+    ImGui::SetItemTooltip("%s","Solo combates offline. En el modo entrenamiento necesita el mod Entrenador de defensa activado (F1 > Mods): si desactivas el mod o esta casilla, la CPU vuelve a lo normal al momento.");
+    if(drill&&!Mods_FolderEnabled("entrenador_contra_z"))ImGui::TextColored(ImVec4(1.0f,0.7f,0.3f,1.0f),"%s","El mod Entrenador de defensa esta desactivado: en el entrenamiento la CPU no atacara.");
     int mix=Port_Setting("train_drill_mix",0);
-    const char *mixes[]={"Cuerpo a cuerpo","Cuerpo a cuerpo y tecnicas","Solo tecnicas"};
+    const char *mixes[]={"Cuerpo a cuerpo","Cuerpo a cuerpo y ataques especiales","Solo ataques especiales"};
     if(mix<0||mix>2)mix=0;
     if(ImGui::Combo("Ataques",&mix,mixes,3)){Port_SettingSave("train_drill_mix",mix);Port_SettingsWrite();}
     int rest=Port_Setting("train_drill_rest",30);
     if(ImGui::SliderInt("Pausa entre ataques (ticks)",&rest,10,90,"%d",ImGuiSliderFlags_AlwaysClamp))Port_SettingSave("train_drill_rest",rest);
     if(ImGui::IsItemDeactivatedAfterEdit())Port_SettingsWrite();
     ImGui::SetItemTooltip("%s","30 ticks = 1 segundo. Menos pausa = mas dificil.");
+    int sup=Port_Setting("train_drill_super",0);
+    const char *sups[]={"Triangulo","Arriba + triangulo","Los dos, alternando"};
+    if(sup<0||sup>2)sup=0;
+    if(ImGui::Combo("Ataque especial",&sup,sups,3)){Port_SettingSave("train_drill_super",sup);Port_SettingsWrite();}
+    ImGui::SetItemTooltip("%s","Que ataque especial lanza la CPU: el de triangulo, el de arriba + triangulo o los dos por turnos. Necesita Ki: pon el Ki infinito en las opciones del entrenamiento.");
+    bool zc=Port_Setting("train_drill_zc",1)!=0;
+    if(ImGui::Checkbox("La CPU siempre hace contra Z",&zc)){Port_SettingSave("train_drill_zc",zc);Port_SettingsWrite();}
+    ImGui::SetItemTooltip("%s","Cada vez que la golpeas te hace contra Z (100%), tambien despues de tu contra Z, para practicar la cadena.");
 }
 
 static void cheats_tab(void) {

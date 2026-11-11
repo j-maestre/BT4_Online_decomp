@@ -167,6 +167,7 @@ enum { MODS_HOOK_FRAME = 1, MODS_HOOK_HUD = 2, MODS_HOOK_CAMERA = 4 };
 void Mods_Lock(void);
 void Mods_Unlock(void);
 int Mods_Count(void);                         /* under the lock */
+int Mods_FolderEnabled(const char *folder);   /* takes the lock itself: the mod in that folder is switched on */
 ModsInfo *Mods_Info(int i);                   /* under the lock */
 const char *Mods_Folder(void);                /* where they are looked for */
 void Mods_SettingChanged(void);               /* the window changed a value or a choice: saved at the next blank */

@@ -87,6 +87,14 @@ void Mods_Lock(void) { pthread_mutex_lock(&sLock); }
 void Mods_Unlock(void) { pthread_mutex_unlock(&sLock); }
 int Mods_Count(void) { return sCount; }
 ModsInfo *Mods_Info(int i) { return i >= 0 && i < sCount ? &sInfo[i] : NULL; }
+/* Whether the mod in that folder is there and switched on in F1 > Mods (port/src/mods_game.c: the defence drill). */
+int Mods_FolderEnabled(const char *folder) {
+    int i, on = 0;
+    Mods_Lock();
+    for (i = 0; i < sCount; i++) if (!strcmp(sInfo[i].folder, folder)) on = sInfo[i].enabled != 0;
+    Mods_Unlock();
+    return on;
+}
 void Mods_SettingChanged(void) { sDirty = 1; }
 void Mods_ReloadAsk(void) { sReload = 1; }
 

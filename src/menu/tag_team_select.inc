@@ -214,7 +214,7 @@ static s32 TeamSel_TagAutoConfirm(s32 seat){
     m->chara=id;m->color=color;m->plate=0;m->form=0;
     m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
     TagBattle_SetDraftItems(seat,id,m->items.id);
-    {extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
+    if(seat==Port_TagSeat()){extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
     Port_TagCommand(4,id,color);if(Port_TagError()[0])return 0;
     side->flags&=~(TEAMSEL_SIDE_FORM|TEAMSEL_SIDE_CUSTOM|TEAMSEL_SIDE_PANEL);
     ItemHelp_Close();ItemPanel_Hide(team);side->chara=id;
@@ -243,7 +243,7 @@ static s32 TeamSel_TagCoopConfirm(s32 seat){
     m->chara=id;m->color=color;m->plate=0;m->form=0;
     m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
     TagBattle_SetDraftItems(seat,id,m->items.id);
-    {extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
+    if(seat==Port_TagSeat()){extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
     Port_TagCommand(4,id,color);if(Port_TagError()[0])return 0;
     if(!ui){fprintf(stderr,"coop: chapter CPU seat=%d chara=%d costume=%d (unseen)\n",seat,id,color);return 1;}
     side->flags&=~(TEAMSEL_SIDE_FORM|TEAMSEL_SIDE_CUSTOM|TEAMSEL_SIDE_PANEL);

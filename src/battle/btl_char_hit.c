@@ -703,6 +703,14 @@ s32 BtlHit_CheckGuard(HitChr *atk, HitChr *def, s32 *full) {
         PortTrain_Hit(def->side, 0, (BtlAnim_GetFlags(BtlAnim_GetId(def)) & 0x31) != 0, def->unk1070);
     }
 #endif
+#ifdef PORT
+    {   /* F1 > Tech > Defence drill (port/src/mods_game.c): its CPU Z counters every attack it can, as if it had
+           pressed at the right time (offline only) */
+        extern int PortDrill_AlwaysZCounter(void);
+        extern s32 BtlCharApi_IsInputInjected(s32 objId);
+        if (PortDrill_AlwaysZCounter() && BtlCharApi_IsInputInjected(def->objId) && def->unk1070 <= 0) def->unk1070 = 1;
+    }
+#endif
     if (BtlChar_GetObj(atk)->hitNo == 0 && (BtlAnim_GetFlags(BtlAnim_GetId(def)) & 0x31) && def->unk1070 > 0) {
         BtlHit_ApplyGuard(atk, def, 8);
         *full = 0;

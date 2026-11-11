@@ -171,25 +171,43 @@ void PortTrain_Hit(int side, int kind, int eligible, int timer) {
    can practise evading with circle. Offline duels only (never online, in Tag Team or in a replay): set when a fight
    starts (src/battle/btl_char_mgr.c) and applied where the AI hands its buttons to its fighter
    (src/battle/btl_char_api.c, BtlCharApi_SetInjectedInput). Its random choices use its own generator, not the game's.
-   Settings: train_drill (0/1), train_drill_mix (0 melee, 1 melee and techniques, 2 techniques only),
-   train_drill_rest (ticks of pause between attacks, 10..90). */
+   Settings: train_drill (0/1), train_drill_mix (0 melee, 1 melee and techniques, 2 special attacks only),
+   train_drill_rest (ticks of pause between attacks, 10..90), train_drill_super (the special attack: 0 L2 + triangle,
+   1 L2 + up + triangle, 2 the two in turn), train_drill_zc (0/1: the CPU Z counters every attack it can).
+   In a training battle it needs the mod Entrenador de defensa (mods/entrenador_contra_z) switched on, and the
+   switches are read again every half second, so that turning either off stops it at once. */
 #define DRILL_SIDES 10
 #define DRILL_STEPS 24
 #define B_DASH 0x2
 #define B_BLAST 0x4
 #define B_RUSH 0x8
 #define B_CHARGE 0x200
+#define B_UP 0x10
 #define B_LOCKON 0x4000
-static int sDrillOn, sDrillMix, sDrillRest, sDrillForced;
+static int sDrillOn, sDrillMix, sDrillRest, sDrillForced, sDrillSuper, sDrillZc, sDrillOffline, sDrillTraining, sDrillCheck;
 /* Advanced Training (src/menu/port_advtrain.c) turns the drill on for its fights; the main menu turns it off. */
 void PortDrill_Force(int on) { sDrillForced = on != 0; }
 int PortDrill_Forced(void) { return sDrillForced; }
 static struct Drill {
     int len, pos, left;            /* the attack being sent: step pos of len, ticks left of it */
-    int rest, sinceTech;
+    int rest, sinceTech, supers;
     unsigned rng;
     struct { unsigned buttons; int ticks; } step[DRILL_STEPS];
 } sDrill[DRILL_SIDES];
+
+/* The switches, read when a fight starts and again every half second during it. */
+static void drill_settings(void) {
+    extern int Port_Setting(const char *, int);
+    extern int Mods_FolderEnabled(const char *folder);
+    sDrillOn = sDrillOffline && (sDrillForced || (sDrillTraining && Port_Setting("train_drill", 0) != 0 &&
+                                                  Mods_FolderEnabled("entrenador_contra_z")));
+    sDrillMix = Port_Setting("train_drill_mix", 0);
+    sDrillRest = Port_Setting("train_drill_rest", 30);
+    if (sDrillRest < 10) sDrillRest = 10;
+    if (sDrillRest > 90) sDrillRest = 90;
+    sDrillSuper = Port_Setting("train_drill_super", 0);
+    sDrillZc = Port_Setting("train_drill_zc", 1) != 0;
+}
 
 void PortDrill_BeginMatch(int offline) {
     extern int Port_Setting(const char *, int);
@@ -197,11 +215,10 @@ void PortDrill_BeginMatch(int offline) {
     extern int Battle_GetMode(void);
     /* the drill from Entrenamiento avanzado, or F1's switch in a training battle only (mode 6): never in the story or
        a versus battle, where the CPU fights with its own AI */
-    sDrillOn = offline && (sDrillForced || (Port_Setting("train_drill", 0) != 0 && Battle_GetMode() == 6));
-    sDrillMix = Port_Setting("train_drill_mix", 0);
-    sDrillRest = Port_Setting("train_drill_rest", 30);
-    if (sDrillRest < 10) sDrillRest = 10;
-    if (sDrillRest > 90) sDrillRest = 90;
+    sDrillOffline = offline;
+    sDrillTraining = Battle_GetMode() == 6;
+    sDrillCheck = 0;
+    drill_settings();
     memset(sDrill, 0, sizeof(sDrill));
     for (i = 0; i < DRILL_SIDES; i++) {
         sDrill[i].rng = 0x9E3779B9u ^ (unsigned)(i * 7919);
@@ -209,7 +226,12 @@ void PortDrill_BeginMatch(int offline) {
     }
 }
 
-int PortDrill_Active(void) { return sDrillOn; }
+int PortDrill_Active(void) {
+    if (sDrillOffline && ++sDrillCheck >= 30) { sDrillCheck = 0; drill_settings(); }
+    return sDrillOn;
+}
+/* src/battle/btl_char_hit.c (BtlHit_CheckGuard): the drill's CPU Z counters every attack its animation allows. */
+int PortDrill_AlwaysZCounter(void) { return sDrillOn && sDrillZc; }
 
 static unsigned drill_rand(struct Drill *d, unsigned n) {
     d->rng = d->rng * 1664525u + 1013904223u;
@@ -225,8 +247,12 @@ static void drill_presses(struct Drill *d, unsigned button, int count) {
     for (i = 0; i < count; i++) { drill_add(d, button, 1); drill_add(d, 0, 5); }
 }
 
+/* A special attack: L2 held, then triangle (with up held too for the other one, as F1 > Tech chooses). */
 static void drill_technique(struct Drill *d) {
-    drill_add(d, B_CHARGE, 3); drill_add(d, B_CHARGE | B_BLAST, 2); drill_add(d, B_CHARGE, 2); drill_add(d, 0, 30);
+    unsigned up = (sDrillSuper == 1 || (sDrillSuper == 2 && (d->supers & 1))) ? B_UP : 0;
+    d->supers++;
+    drill_add(d, B_CHARGE, 3); drill_add(d, B_CHARGE | up, 3); drill_add(d, B_CHARGE | up | B_BLAST, 2);
+    drill_add(d, B_CHARGE | up, 2); drill_add(d, 0, 30);
 }
 
 /* Picks the next attack. */
