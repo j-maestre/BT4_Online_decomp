@@ -260,8 +260,10 @@ int PortCoop_Done(int i) {
 /* The end of a Tag Team battle (src/battle/btl_seq.c): winner bits of the result, 1 = team 0 (the players). */
 /* ------------------------------------------------------------------------------------------------------------------
  * Levels, grades and Z points.
- * Each character a player uses in the co-op story is their own copy of it, with its level (1..100) from the
- * experience it earned; the battle makes it weaker or stronger by its level (src/battle/coop_infinite.c, CoopLv_*).
+ * Each player has a fighter of their own: a copy of a character they choose (the co-op screen, "Mi personaje"),
+ * offered as an extra cell of the character select. Picked from that cell it has its level (1..100) from the
+ * experience it earned, and the battle makes it weaker or stronger by it (src/battle/coop_infinite.c, CoopLv_*);
+ * the same character from its own cell is the original, as always.
  * After each battle the player's fighter earns experience by how it went: the share of the rivals' health it took,
  * the partners it revived, the times it fell, the victory. A chapter won also gives a grade, E D C B A S Z, the best
  * one kept for the chapter list, and Z points (the story mode's money) by the grade.
@@ -271,8 +273,12 @@ static char sRewardLine[200];
 static int sRewardZp;
 static const char *const kGrades[8] = {"", "E", "D", "C", "B", "A", "S", "Z"};
 
-static void rpg_key(char *out, int cap, int chara) { snprintf(out, cap, "coop_xp_%d", chara); }
-int PortRpg_Xp(int chara) { char k[32]; if (chara < 0) return 0; rpg_key(k, sizeof(k), chara); return Port_Setting(k, 0); }
+static int sUsingMine; /* the last pick was my own fighter's cell (src/menu/tag_team_select.inc) */
+int PortRpg_MyChara(void) { int c = Port_Setting("coop_mi_chara", 1); return c >= 0 && c < 512 ? c : 1; }
+void PortRpg_SetMyChara(int chara) { Port_SettingSave("coop_mi_chara", chara); Port_SettingsWrite(); }
+void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
+int PortRpg_UsingMine(void) { return sUsingMine; }
+static int PortRpg_Xp(void) { return Port_Setting("coop_mi_xp", 0); }
 /* experience from level L to L+1 */
 static int rpg_need(int level) { return 40 + 5 * level; }
 int PortRpg_LevelOfXp(int xp) {
@@ -280,10 +286,12 @@ int PortRpg_LevelOfXp(int xp) {
     while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }
     return level;
 }
-int PortRpg_Level(int chara) { return chara < 0 ? 0 : PortRpg_LevelOfXp(PortRpg_Xp(chara)); }
+int PortRpg_MyLevel(void) { return PortRpg_LevelOfXp(PortRpg_Xp()); }
+/* the level the battle uses for my pick: my own fighter's, or 0 (the original) */
+int PortRpg_PickLevel(void) { return sUsingMine ? PortRpg_MyLevel() : 0; }
 /* the experience inside the current level, in thousandths of what the next one needs (for a bar) */
-int PortRpg_LevelMille(int chara) {
-    int xp = PortRpg_Xp(chara), level = 1;
+int PortRpg_LevelMille(void) {
+    int xp = PortRpg_Xp(), level = 1;
     while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }
     return level >= RPG_MAX_LEVEL ? 1000 : xp * 1000 / rpg_need(level);
 }
@@ -303,9 +311,8 @@ int PortCoop_TakeZPoints(void) { int z = sRewardZp; sRewardZp = 0; return z; }
 
 static void rpg_reward(int won) {
     extern int TagBattle_LocalActor(void), CoopLv_DamageShareMille(int), CoopLv_Revives(int), CoopLv_Downs(int);
-    extern int Port_TagPlayerChara(int), Port_TagSeat(void);
     static const int zp[8] = {0, 500, 1000, 2000, 3000, 5000, 7500, 10000};
-    int me = TagBattle_LocalActor(), chara = Port_TagPlayerChara(Port_TagSeat());
+    int me = TagBattle_LocalActor();
     int share = CoopLv_DamageShareMille(me), revives = CoopLv_Revives(me), downs = CoopLv_Downs(me);
     int score, grade = 0, xp, before, after, n = 0;
     char key[32];
@@ -326,13 +333,14 @@ static void rpg_reward(int won) {
         xp = 20 + share * 30 / 1000 + revives * 8;
         sRewardZp = 0;
     }
-    before = PortRpg_Level(chara);
-    if (chara >= 0) { rpg_key(key, sizeof(key), chara); Port_SettingSave(key, PortRpg_Xp(chara) + xp); }
+    if (!sUsingMine) xp = 0; /* (the original fighter: no experience; the grade and the Z points all the same) */
+    before = PortRpg_MyLevel();
+    if (xp) Port_SettingSave("coop_mi_xp", PortRpg_Xp() + xp);
     Port_SettingsWrite();
-    after = PortRpg_Level(chara);
+    after = PortRpg_MyLevel();
     if (grade) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "Nota %s  ", kGrades[grade]);
     if (sRewardZp) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "+%d Puntos Z  ", sRewardZp);
-    if (n < (int)sizeof(sRewardLine))
+    if (xp && n < (int)sizeof(sRewardLine))
         n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, after > before ? "+%d EXP: ¡nivel %d!" : "+%d EXP (nivel %d)", xp, after);
     fprintf(stderr, "coop: reward score=%d share=%d revives=%d downs=%d grade=%s xp=%d level %d->%d zp=%d\n", score, share,
             revives, downs, kGrades[grade], xp, before, after, sRewardZp);

@@ -65,6 +65,8 @@ static s32 Port_EscTake(void) {
 }
 
 /* The fighters' names (Train While Waiting's choice), by character id. */
+void PortTbo_CharaName(s32 chara, char *out, s32 cap);
+s32 PortTbo_CharaCount(void);
 static const char *const sTbNames[] = {
     "Goku (Early)",
     "Goku (Med)",
@@ -228,6 +230,16 @@ static const char *const sTbNames[] = {
     "Future Gohan",
     "Future Gohan Super Saiyan",
 };
+/* (Historia cooperativa's "Mi personaje", src/menu/port_coop.c) */
+s32 PortTbo_CharaCount(void) { return (s32)(sizeof(sTbNames) / sizeof(sTbNames[0])); }
+void PortTbo_CharaName(s32 chara, char *out, s32 cap) {
+    /* (not `?:` between the table's entry and a literal: the 32-bit pointer build read the entry as 8 bytes) */
+    if (chara >= 0 && chara < PortTbo_CharaCount()) {
+        Ps_Copy(out, sTbNames[chara], cap);
+    } else {
+        Ps_Copy(out, "?", cap);
+    }
+}
 #include "menu/tbo_art.h"
 #include "menu/tbo_sizes.h"
 #include "menu/port_screen.h"

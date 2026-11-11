@@ -28,6 +28,7 @@ static s32 sTagHoverShown[2]={-1,-1};
    by themselves and are not shown (CoopUiTeam 2). Elsewhere a side is a team, as before. */
 extern int PortCoop_Active(void);
 static s32 CoopUiOn(void){return PortCoop_Active()&&Port_TagNetwork()&&Port_TagTeamCount(0)==2&&!Port_TagFreeForAll();}
+static s32 TagCoop_OnMine(s32 col,s32 row); /* ("Mi personaje", below) */
 static s32 CoopUiTeam(s32 seat){
     if(!CoopUiOn())return Port_TagTeam(seat);
     return Port_TagTeam(seat)==0?(Port_TagTeamIndex(seat)?1:0):2;
@@ -213,6 +214,7 @@ static s32 TeamSel_TagAutoConfirm(s32 seat){
     m->chara=id;m->color=color;m->plate=0;m->form=0;
     m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
     TagBattle_SetDraftItems(seat,id,m->items.id);
+    {extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
     Port_TagCommand(4,id,color);if(Port_TagError()[0])return 0;
     side->flags&=~(TEAMSEL_SIDE_FORM|TEAMSEL_SIDE_CUSTOM|TEAMSEL_SIDE_PANEL);
     ItemHelp_Close();ItemPanel_Hide(team);side->chara=id;
@@ -241,6 +243,7 @@ static s32 TeamSel_TagCoopConfirm(s32 seat){
     m->chara=id;m->color=color;m->plate=0;m->form=0;
     m->row=index/TS_COLS;m->col=index%TS_COLS;memset(&m->items,0,sizeof(TsItemSet));
     TagBattle_SetDraftItems(seat,id,m->items.id);
+    {extern void PortRpg_PickMine(int);PortRpg_PickMine(0);}
     Port_TagCommand(4,id,color);if(Port_TagError()[0])return 0;
     if(!ui){fprintf(stderr,"coop: chapter CPU seat=%d chara=%d costume=%d (unseen)\n",seat,id,color);return 1;}
     side->flags&=~(TEAMSEL_SIDE_FORM|TEAMSEL_SIDE_CUSTOM|TEAMSEL_SIDE_PANEL);
@@ -275,6 +278,12 @@ static void TeamSel_TagCaption(s32 seat,s32 pending){
             s32 who=-1;for(n=0;n<Port_TagCapacity();++n)if(CoopUiTeam(n)==team){who=n;break;}
             Ps_Copy(line,team?"JUGADOR 2: ":"JUGADOR 1: ",128);
             if(who>=0)Ps_Cat(line,(char*)Port_TagPlayerName(who),128);
+            if(who>=0&&turn>=0){ /* on its own fighter's cell */
+                s32 hc,hr,hf;extern int PortRpg_MyLevel(void);
+                if(who==seat){TsMember *mm=&gTeamSel->side[team]->member[CoopUiIndex(seat)%5];
+                    if(TagCoop_OnMine(mm->col,mm->row)){char lv[48];sprintf(lv," | MI PERSONAJE Nv %d",PortRpg_MyLevel());Ps_Cat(line,lv,128);}}
+                else if(Port_TagHover(who,&hc,&hr,&hf)&&TagCoop_OnMine(hc,hr))Ps_Cat(line," | SU PERSONAJE",128);
+            }
             if(turn<0)Ps_Cat(line,(char *)PortOnline_Text(" | READY"),128);
         }else{
         Ps_Copy(line,(char*)PortOnline_Text(Port_TagFreeForAll()?"Fighters: ":team?"RED TEAM: ":"BLUE TEAM: "),128);
@@ -286,6 +295,29 @@ static void TeamSel_TagCaption(s32 seat,s32 pending){
     }
     Ps_Align(1);Ps_Text(256,412,"TRIANGLE: BACK",.42f,180,0);Ps_Align(0);
 }
+
+/* Historia cooperativa: "Mi personaje", the player's own fighter (port/src/coop_story.c): a copy of the cell of the
+   character chosen on the co-op screen, added after the last character (or on the first filler of the last row).
+   Picked from that cell, the fighter has the player's level; from its own cell, it is the original. */
+static s32 sCoopMineCell=-1;
+static void TagCoop_AddMine(void){
+    extern int PortRpg_MyChara(void);
+    s32 base=PortRpg_MyChara(),t,c,j,src,at,n;
+    sCoopMineCell=-1;
+    if((!CoopUiOn()&&!(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_MINE_TEST")))||base<0)return;
+    for(t=0;t<2;++t){
+        TsCell *g=gTeamSel->cells[t];n=gTeamSel->masterCount[t];src=-1;at=-1;
+        for(c=0;c<n&&src<0;++c){if(g[c].id==base)src=c;for(j=0;j<g[c].formCount&&j<7;++j)if(g[c].form[j]==base)src=c;}
+        if(src<0)return;
+        for(c=n-1;c>=0&&g[c].id==TS_EMPTY;--c)at=c;
+        if(at<0){if(n>=TS_CELL_MAX)return;at=n++;gTeamSel->masterCount[t]=gTeamSel->cellCount[t]=n;gTeamSel->rows[t]=(n+TS_COLS-1)/TS_COLS;}
+        g[at]=g[src];sCoopMineCell=at;
+    }
+    if(getenv("BT4_RENDER_TEST"))fprintf(stderr,"coop: my own fighter (chara %d) on cell %d\n",base,sCoopMineCell);
+    if(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_MINE_TEST")&&sCoopMineCell>=0) /* (test: the cursor starts on it) */
+        for(t=0;t<2;++t){gTeamSel->side[t]->member[0].col=sCoopMineCell%TS_COLS;gTeamSel->side[t]->member[0].row=sCoopMineCell/TS_COLS;}
+}
+static s32 TagCoop_OnMine(s32 col,s32 row){return sCoopMineCell>=0&&row*TS_COLS+col==sCoopMineCell;}
 
 #include "tag_team_select_test.inc"
 
@@ -303,7 +335,7 @@ s32 TeamSel_TagRun(s32 section){
     savedSave=Heap_Alloc(SAVE_SIZE,0x20,0,2);memcpy(savedSave,gSaveData,SAVE_SIZE);Save_UnlockAll(gSaveData);
     memset(gTsProgress->team,0,sizeof(gTsProgress->team));
     for(i=0;i<5;++i){gTsProgress->team[0].member[i].chara=-1;gTsProgress->team[1].member[i].chara=-1;}
-    gTsProgress->players=TEAMSEL_PLAYERS_TWO;gTsProgress->battleType=1;TeamSel_Init(section);
+    gTsProgress->players=TEAMSEL_PLAYERS_TWO;gTsProgress->battleType=1;TeamSel_Init(section);TagCoop_AddMine();
     sTagPage[0]=sTagPage[1]=-1;sTagSelectActive=1;sTagFacesHidden=sTagTransition=sTagTurnSeconds=0;TagSelectTest_Reset();
     sTagPublishedStage=sTagPublishedBgm=sTagAppliedStage=sTagAppliedBgm=-1;
     if(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_CATALOG")){
@@ -401,6 +433,7 @@ s32 TeamSel_TagRun(s32 section){
             TsMember *m=&gTeamSel->side[team]->member[slot];
             if(Port_TagNetwork())memset(&m->items,0,sizeof(TsItemSet));
             TagBattle_SetDraftItems(seat,m->chara,m->items.id);
+            {extern void PortRpg_PickMine(int);PortRpg_PickMine(TagCoop_OnMine(m->col,m->row));}
             Port_TagCommand(4,m->chara,m->color);pending=1;
             if(getenv("BT4_RENDER_TEST"))fprintf(stderr,"tag draft: native confirmation seat=%d chara=%d costume=%d\n",seat,m->chara,m->color);
         }else if(!exit && ownTurn && canInput && lastSeat==seat){

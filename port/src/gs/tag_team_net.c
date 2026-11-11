@@ -458,9 +458,9 @@ static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_chara[TT_MA
  * choice itself, so the partner has it before the choice arrives); the battle and the load digest use it. */
 static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS];
 int Port_TagSeatLevel(int seat){
-    extern int PortCoop_Active(void),PortRpg_Level(int);
+    extern int PortCoop_Active(void),PortRpg_PickLevel(void);
     if(!PortCoop_Active()||seat<0||seat>=TT_MAX_PLAYERS||seat>=Tt_Capacity(&state)||state.players[seat].cpu||state.players[seat].chara<0)return 0;
-    if(seat==Tt_Seat(&state,member))return PortRpg_Level(state.players[seat].chara);
+    if(seat==Tt_Seat(&state,member))return PortRpg_PickLevel();
     return lv_chara[seat]==state.players[seat].chara?lv_level[seat]:0;
 }
 void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=lv_chara[i]=-1;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
@@ -766,8 +766,8 @@ void Port_TagCommand(int command,int a,int b){
 
     if(command==TTW_CHOOSE)Ttw_Write(packet+20,(uint32_t)Port_TagDraftSeat());
     if(command==TTW_CHOOSE&&Port_TagDraftSeat()==Tt_Seat(&state,member)){ /* Historia cooperativa: my level first */
-        extern int PortCoop_Active(void),PortRpg_Level(int);
-        if(PortCoop_Active()){char line[48];snprintf(line,sizeof(line),"#lv:%d:%d",a,PortRpg_Level(a));Port_TagChatSend(line);}
+        extern int PortCoop_Active(void),PortRpg_PickLevel(void);
+        if(PortCoop_Active()){char line[48];snprintf(line,sizeof(line),"#lv:%d:%d",a,PortRpg_PickLevel());Port_TagChatSend(line);}
     }
 
     request(packet);

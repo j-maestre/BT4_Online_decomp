@@ -37,7 +37,7 @@ extern const char *PortCoop_ChGrade(int i), *PortCoop_RewardLine(void);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
-enum { CO_START, CO_LIST, CO_CHAPTER };
+enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK };
 #define CO_ROWS 7 /* chapters on the list at once */
 
 typedef struct CoopScreen {
@@ -48,6 +48,7 @@ typedef struct CoopScreen {
 } CoopScreen;
 
 static CoopScreen *sCo;
+static void Co_PickOpen(void);
 
 /* The game's 16-bit text for the message box, from UTF-8. */
 static u16 *Co_Box(const char *utf8) {
@@ -123,17 +124,71 @@ static void Co_StartUpdate(void) {
 
     Ps_Prompt(0, "Confirmar");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->start, 4);
+    Ps_Move(&sCo->start, 5);
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
-        if (sCo->start == 0) Co_SetPage(CO_LIST);
+        if (sCo->start == 4) Co_PickOpen();
+        else if (sCo->start == 0) Co_SetPage(CO_LIST);
         else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
         else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
         Co_Leave(0);
     }
+}
+
+/* "Mi personaje": the list of characters (their first form only), to choose the player's own fighter. */
+extern void PortTbo_CharaName(s32 chara, char *out, s32 cap);
+extern s32 PortTbo_CharaCount(void);
+extern int PortRpg_MyChara(void), PortRpg_MyLevel(void);
+extern void PortRpg_SetMyChara(int chara);
+static s32 sPickIds[256], sPickCount;
+static void Co_PickBuild(void) {
+    char name[48], base[48];
+    s32 c, n = PortTbo_CharaCount(), len;
+
+    sPickCount = 0;
+    base[0] = 0;
+    for (c = 0; c < n && sPickCount < 256; c++) {
+        PortTbo_CharaName(c, name, 48);
+        if (!name[0] || name[0] == '?') continue;
+        len = (s32)strlen(base);
+        if (len > 0 && !strncmp(name, base, len) && name[len] == ' ') continue; /* a form of the one before ("... Super Saiyan") */
+        Ps_Copy(base, name, 48);
+        sPickIds[sPickCount++] = c;
+    }
+}
+static void Co_PickUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, "Elegir");
+    Ps_Prompt(2, "Volver");
+    if (sPickCount > 0) {
+        Ps_Move(&sCo->cur, sPickCount);
+        if (sCo->cur < sCo->top) sCo->top = sCo->cur;
+        if (sCo->cur >= sCo->top + CO_ROWS) sCo->top = sCo->cur - CO_ROWS + 1;
+    }
+    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sPickCount > 0) {
+        Snd_PlaySe(1, 1);
+        PortRpg_SetMyChara(sPickIds[sCo->cur]);
+        sCo->cur = sCo->top = 0;
+        Co_SetPage(CO_START);
+    } else if (pad->gamePressed & PADG_TRIANGLE) {
+        Snd_PlaySe(1, 2);
+        sCo->cur = sCo->top = 0;
+        Co_SetPage(CO_START);
+    }
+}
+static void Co_PickOpen(void) {
+    s32 i, mine = PortRpg_MyChara();
+
+    Co_PickBuild();
+    sCo->cur = 0;
+    for (i = 0; i < sPickCount; i++) if (sPickIds[i] == mine) sCo->cur = i;
+    sCo->top = sCo->cur >= CO_ROWS ? sCo->cur - CO_ROWS / 2 : 0;
+    if (sCo->top > sPickCount - CO_ROWS) sCo->top = sPickCount - CO_ROWS > 0 ? sPickCount - CO_ROWS : 0;
+    Co_SetPage(CO_PICK);
 }
 
 static void Co_ListUpdate(void) {
@@ -246,26 +301,44 @@ static void Co_Draw(void) {
     PortOnline_Raw(1);
     if (sCo->page == CO_START) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
-        Co_Wrap(50.0f + slide, 82.0f, "T\303\272 y un amigo, cada uno en su casa, contra los rivales de la CPU de cada cap\303\255tulo. "
-                "Uno crea la sala y elige el cap\303\255tulo; el otro se une con el c\303\263digo.", 0.55f, 410.0f, 20.0f, 4, 0);
+        Co_Wrap(50.0f + slide, 82.0f, "T\303\272 y un amigo, cada uno en su casa, contra la CPU. "
+                "Uno crea la sala y el otro se une con el c\303\263digo.", 0.55f, 410.0f, 20.0f, 2, 0);
         {   char rec[2][40];
             sprintf(rec[0], "R\303\251cord: %d", PortCoop_InfRecord(2));
             sprintf(rec[1], "R\303\251cord: %d", PortCoop_InfRecord(3));
-            Co_Row(60.0f + slide, 380.0f + slide, 170.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 200.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 236.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 266.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
+            char mine[80], mineName[48];
+            Co_Row(60.0f + slide, 380.0f + slide, 136.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 166.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 202.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 232.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
+            PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
+            sprintf(mine, "%.40s  Nv %d", mineName, PortRpg_MyLevel());
+            Co_Row(60.0f + slide, 380.0f + slide, 268.0f, "Mi personaje", mine, sCo->start == 4, 5);
         }
         if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 302.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
         else if (PortCoop_RewardLine()[0]) { /* the last battle's grade, Z points and experience */
             sprintf(line, "\303\232ltimo combate: %.120s", PortCoop_RewardLine());
             Co_Wrap(50.0f + slide, 302.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
         }
-        box = sCo->start == 0
+        box = sCo->start == 4
+            ? "Tu propio personaje: una copia del que elijas, que sube de nivel con cada combate seg\303\272n lo bien que lo hagas."
+            : sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
             : sCo->start == 1
             ? "Escribe el c\303\263digo que te d\303\251 tu amigo. El cap\303\255tulo o el modo lo elige quien crea la sala."
             : "Oleadas sin fin: cuando cae un rival entra otro, cada vez con m\303\241s vida y m\303\241s da\303\261o. Cada 5 oleadas, un jefe. Crea la sala y pasa el c\303\263digo.";
+    } else if (sCo->page == CO_PICK) {
+        char name[48];
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Mi personaje", 1.3f, 300.0f, 0x80);
+        for (i = sCo->top; i < sPickCount && i < sCo->top + CO_ROWS; i++) {
+            PortTbo_CharaName(sPickIds[i], name, 48);
+            Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), name,
+                   sPickIds[i] == PortRpg_MyChara() ? "Elegido" : NULL, i == sCo->cur, 5);
+        }
+        if (sCo->top > 0) Ps_Text(220.0f + slide, 66.0f, "...", 0.5f, 40.0f, 4);
+        if (sCo->top + CO_ROWS < sPickCount) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
+        box = "Elige qui\303\251n quieres ser. En la selecci\303\263n de personaje de la cooperativa saldr\303\241 una casilla m\303\241s, "
+              "al final, con \303\251l: es tu personaje, con tu nivel. Su casilla normal sigue siendo el original.";
     } else if (sCo->page == CO_LIST) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
         if (count == 0) {
@@ -349,6 +422,7 @@ s32 PortCoop_Run(void) {
         if (live) {
             if (sCo->page == CO_START) Co_StartUpdate();
             else if (sCo->page == CO_LIST) Co_ListUpdate();
+            else if (sCo->page == CO_PICK) Co_PickUpdate();
             else Co_ChapterUpdate();
         }
         Port_MenuPage(52);
