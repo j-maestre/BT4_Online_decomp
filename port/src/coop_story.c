@@ -258,6 +258,86 @@ int PortCoop_Done(int i) {
 }
 
 /* The end of a Tag Team battle (src/battle/btl_seq.c): winner bits of the result, 1 = team 0 (the players). */
+/* ------------------------------------------------------------------------------------------------------------------
+ * Levels, grades and Z points.
+ * Each character a player uses in the co-op story is their own copy of it, with its level (1..100) from the
+ * experience it earned; the battle makes it weaker or stronger by its level (src/battle/coop_infinite.c, CoopLv_*).
+ * After each battle the player's fighter earns experience by how it went: the share of the rivals' health it took,
+ * the partners it revived, the times it fell, the victory. A chapter won also gives a grade, E D C B A S Z, the best
+ * one kept for the chapter list, and Z points (the story mode's money) by the grade.
+ * ---------------------------------------------------------------------------------------------------------------- */
+#define RPG_MAX_LEVEL 100
+static char sRewardLine[200];
+static int sRewardZp;
+static const char *const kGrades[8] = {"", "E", "D", "C", "B", "A", "S", "Z"};
+
+static void rpg_key(char *out, int cap, int chara) { snprintf(out, cap, "coop_xp_%d", chara); }
+int PortRpg_Xp(int chara) { char k[32]; if (chara < 0) return 0; rpg_key(k, sizeof(k), chara); return Port_Setting(k, 0); }
+/* experience from level L to L+1 */
+static int rpg_need(int level) { return 40 + 5 * level; }
+int PortRpg_LevelOfXp(int xp) {
+    int level = 1;
+    while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }
+    return level;
+}
+int PortRpg_Level(int chara) { return chara < 0 ? 0 : PortRpg_LevelOfXp(PortRpg_Xp(chara)); }
+/* the experience inside the current level, in thousandths of what the next one needs (for a bar) */
+int PortRpg_LevelMille(int chara) {
+    int xp = PortRpg_Xp(chara), level = 1;
+    while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }
+    return level >= RPG_MAX_LEVEL ? 1000 : xp * 1000 / rpg_need(level);
+}
+
+static void grade_key(char *out, int cap, int i) { done_key(out, cap, i); memcpy(out, "coop_nota_", 10); }
+/* The best grade of chapter i: "" without one. */
+const char *PortCoop_ChGrade(int i) {
+    char key[64]; int g;
+    if (i < 0 || i >= sCount) return "";
+    grade_key(key, sizeof(key), i);
+    g = Port_Setting(key, 0);
+    return g >= 1 && g <= 7 ? kGrades[g] : "";
+}
+const char *PortCoop_RewardLine(void) { return sRewardLine; }
+/* The Z points earned by the last battle, once (src/menu/port_tbo.c pays them into the save). */
+int PortCoop_TakeZPoints(void) { int z = sRewardZp; sRewardZp = 0; return z; }
+
+static void rpg_reward(int won) {
+    extern int TagBattle_LocalActor(void), CoopLv_DamageShareMille(int), CoopLv_Revives(int), CoopLv_Downs(int);
+    extern int Port_TagPlayerChara(int), Port_TagSeat(void);
+    static const int zp[8] = {0, 500, 1000, 2000, 3000, 5000, 7500, 10000};
+    int me = TagBattle_LocalActor(), chara = Port_TagPlayerChara(Port_TagSeat());
+    int share = CoopLv_DamageShareMille(me), revives = CoopLv_Revives(me), downs = CoopLv_Downs(me);
+    int score, grade = 0, xp, before, after, n = 0;
+    char key[32];
+
+    /* the score, 0..100: winning, the share of the damage, the partners revived, not falling */
+    score = 40 + share * 40 / 1000 + revives * 8 + (downs == 0 ? 20 : downs == 1 ? 8 : 0);
+    if (score > 100) score = 100;
+    if (sInfinite) {
+        xp = 30 + sInfWaves * 25 + share * 30 / 1000 + revives * 10;
+        sRewardZp = sInfWaves * 400;
+    } else if (won) {
+        grade = score >= 95 ? 7 : score >= 85 ? 6 : score >= 72 ? 5 : score >= 60 ? 4 : score >= 48 ? 3 : score >= 36 ? 2 : 1;
+        xp = 50 + score + sSelected * 3;
+        sRewardZp = zp[grade] + sSelected * 100;
+        grade_key(key, sizeof(key), sSelected);
+        if (grade > Port_Setting(key, 0)) Port_SettingSave(key, grade);
+    } else {
+        xp = 20 + share * 30 / 1000 + revives * 8;
+        sRewardZp = 0;
+    }
+    before = PortRpg_Level(chara);
+    if (chara >= 0) { rpg_key(key, sizeof(key), chara); Port_SettingSave(key, PortRpg_Xp(chara) + xp); }
+    Port_SettingsWrite();
+    after = PortRpg_Level(chara);
+    if (grade) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "Nota %s  ", kGrades[grade]);
+    if (sRewardZp) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "+%d Puntos Z  ", sRewardZp);
+    if (n < (int)sizeof(sRewardLine))
+        n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, after > before ? "+%d EXP: ¡nivel %d!" : "+%d EXP (nivel %d)", xp, after);
+    fprintf(stderr, "coop: reward score=%d share=%d revives=%d downs=%d grade=%s xp=%d level %d->%d zp=%d\n", score, share,
+            revives, downs, kGrades[grade], xp, before, after, sRewardZp);
+}
+
 void PortCoop_BattleEnded(int winner) {
     if (sInfinite && !gPortResim) {
         char key[32];
@@ -265,6 +345,7 @@ void PortCoop_BattleEnded(int winner) {
         snprintf(key, sizeof(key), "coop_inf_record_%d", sInfinite);
         if (sInfWaves > Port_Setting(key, 0)) { Port_SettingSave(key, sInfWaves); Port_SettingsWrite(); sOutcome = 4; }
         else sOutcome = 3;
+        rpg_reward(0);
         fprintf(stderr, "coop: endless mode over: %d waves\n", sInfWaves);
         return;
     }
@@ -276,23 +357,27 @@ void PortCoop_BattleEnded(int winner) {
         Port_SettingSave(key, 1);
         Port_SettingsWrite();
     }
+    rpg_reward(sOutcome == 1);
 }
 
 /* The line to show after the battle, once: the closing text or the defeat line; NULL when there is none. */
 const char *PortCoop_TakeOutcome(void) {
     if (sInfinite && sOutcome >= 3) {
-        static char line[160];
+        static char line[256];
         int o = sOutcome, rec = PortCoop_InfRecord(sInfinite);
         sOutcome = 0;
-        if (o == 4) snprintf(line, sizeof(line), "¡Nuevo récord! Habéis superado %d oleadas.", sInfWaves);
-        else snprintf(line, sizeof(line), "Habéis superado %d oleadas. Vuestro récord: %d.", sInfWaves, rec);
+        if (o == 4) snprintf(line, sizeof(line), "¡Nuevo récord! Habéis superado %d oleadas.  %s", sInfWaves, sRewardLine);
+        else snprintf(line, sizeof(line), "Habéis superado %d oleadas. Vuestro récord: %d.  %s", sInfWaves, rec, sRewardLine);
         return line;
     }
     int o = sOutcome;
     sOutcome = 0;
     if (sSelected < 0 || o == 0) return NULL;
-    if (o == 1) return sCh[sSelected].outro[0] ? sCh[sSelected].outro : "¡Capítulo superado!";
-    return sCh[sSelected].defeat[0] ? sCh[sSelected].defeat : "Habéis caído... ¡Inténtalo otra vez!";
+    {   static char line[256];
+        snprintf(line, sizeof(line), "%s  %s", o == 1 ? (sCh[sSelected].outro[0] ? sCh[sSelected].outro : "¡Capítulo superado!")
+                 : (sCh[sSelected].defeat[0] ? sCh[sSelected].defeat : "Habéis caído... ¡Inténtalo otra vez!"), sRewardLine);
+        return line;
+    }
 }
 
 /* The chosen chapter's title (the room's heading on the online screens), NULL with none. */

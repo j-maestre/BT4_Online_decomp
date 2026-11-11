@@ -140,6 +140,10 @@ extern BtlMemberChr *BtlChar_Get(s32 side);
 extern s32 TagBattle_Count(void);
 
 static s32 sRevOn;           /* reviving is on in this battle */
+static s32 sRevHelper[10];  /* the partner reviving this player */
+static s32 sLvOn, sLvLevel[10], sLvDealt[10], sLvRevives[10], sLvDowns[10], sLvRivalDamage, sLvAttacker = -1;
+s32 CoopLv_Level(s32 actor);
+s32 CoopLv_HealthPct(s32 level);
 static s32 sRevChara[10];    /* each player's fighter as set up (-1: no reviving for that side) */
 static s32 sRevCostume[10];
 static s32 sRevProgress[10]; /* how long a partner has held guard next to this fallen player */
@@ -151,7 +155,7 @@ void CoopRevive_Configure(s32 on) {
     s32 i;
 
     sRevOn = on;
-    for (i = 0; i < 10; i++) { sRevChara[i] = -1; sRevCostume[i] = 0; sRevProgress[i] = 0; sRevGranted[i] = 0; sRevActive[i] = 0; sRevWarp[i] = 0; }
+    for (i = 0; i < 10; i++) { sRevChara[i] = -1; sRevCostume[i] = 0; sRevProgress[i] = 0; sRevGranted[i] = 0; sRevActive[i] = 0; sRevWarp[i] = 0; sRevHelper[i] = -1; }
 }
 s32 CoopRevive_Active(void) { return sRevOn; }
 extern s32 TagBattle_Active(void);
@@ -192,6 +196,7 @@ void CoopRevive_Update(void) {
             if (dx * dx + dy * dy + dz * dz <= REVIVE_RANGE * REVIVE_RANGE && REV_GUARD(h))
                 helped = 1;
         }
+        if (helped) sRevHelper[d] = h - 1; /* (the loop stepped past the helper) */
         {   extern s32 gPortResim;
             static s32 logTick;
             if (!gPortResim && ++logTick % 30 == 0) /* (a line a second: what the revive sees) */
@@ -208,10 +213,11 @@ void CoopRevive_Update(void) {
         else if (sRevProgress[d] > 0) sRevProgress[d] -= sRevProgress[d] > 1 ? 2 : 1; /* (it fades when let go) */
         if (sRevProgress[d] >= REVIVE_TICKS) {
             BattleMember m;
-            BtlMember_Init(&m, sRevChara[d], sRevCostume[d], 0, 0, REVIVE_HEALTH, NULL);
+            BtlMember_Init(&m, sRevChara[d], sRevCostume[d], 0, 0, REVIVE_HEALTH * CoopLv_HealthPct(CoopLv_Level(d)) / 100, NULL);
             h = BtlMember_Replace(down, (BtlMemberSetup *)&m);
             sRevProgress[d] = 0;
             sRevGranted[d] = h >= 0;
+            if (h >= 0 && sRevHelper[d] >= 0 && sRevHelper[d] < 10) sLvRevives[sRevHelper[d]]++;
             fprintf(stderr, "coop: player %d revived (slot %d)\n", d, h);
         }
     }
@@ -273,4 +279,61 @@ f32 CoopRevive_Progress(void) {
     for (d = 0; d < 10; d++) if (sRevProgress[d] > best) best = sRevProgress[d];
     return sRevOn ? (f32)best / REVIVE_TICKS : 0.0f;
 }
+/* ------------------------------------------------------------------------------------------------------------------
+ * Levels (every co-op battle): each player's fighter is their own copy of the character, from level 1 to 100
+ * (port/src/coop_story.c keeps the experience). Level 1 is weaker than the original and level 100 stronger: health
+ * 75%..125%, the damage it deals 75%..130% and the damage it takes 125%..80% (the original at about level 45). Both
+ * machines know both levels before the battle (port/src/gs/tag_team_net.c), so the battle stays the same on both.
+ * The battle also counts what each player does, for the experience: the damage dealt to the rivals, the partners
+ * revived and the times fallen.
+ * ---------------------------------------------------------------------------------------------------------------- */
+
+static s32 CoopLv_Lerp(s32 level, s32 at1, s32 at100) {
+    if (level < 1) level = 1;
+    if (level > 100) level = 100;
+    return at1 + (at100 - at1) * (level - 1) / 99;
+}
+s32 CoopLv_HealthPct(s32 level) { return level > 0 ? CoopLv_Lerp(level, 75, 125) : 100; }
+static s32 CoopLv_AttackPct(s32 level) { return level > 0 ? CoopLv_Lerp(level, 75, 130) : 100; }
+static s32 CoopLv_TakenPct(s32 level) { return level > 0 ? CoopLv_Lerp(level, 125, 80) : 100; }
+
+void CoopLv_Configure(s32 on) {
+    s32 i;
+
+    sLvOn = on;
+    sLvRivalDamage = 0;
+    sLvAttacker = -1;
+    for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
+}
+void CoopLv_SetLevel(s32 actor, s32 level) { if (actor >= 0 && actor < 10) sLvLevel[actor] = level < 0 ? 0 : level > 100 ? 100 : level; }
+s32 CoopLv_Active(void) { return sLvOn && TagBattle_Active(); }
+s32 CoopLv_Level(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvLevel[actor] : 0; }
+/* who strikes, around one hit (src/battle/btl_char_hit.c, btl_char_coll_b.c): set and cleared within the same call */
+s32 CoopLv_SetAttacker(s32 actor) { s32 before = sLvAttacker; sLvAttacker = actor; return before; }
+
+/* Every health loss (src/battle/btl_char_member.c, BtlMember_Damage). */
+s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
+    s32 v = chr->side, a = sLvAttacker;
+
+    if (!sLvOn || amount <= 0 || v < 0 || v >= 10) return amount;
+    if (a >= 0 && a < 10 && a != v && TagBattle_Team(a) != TagBattle_Team(v)) {
+        if (sLvLevel[a] > 0) amount = amount * CoopLv_AttackPct(sLvLevel[a]) / 100;
+        if (TagBattle_Team(v) == 1) sLvDealt[a] += amount;
+    }
+    if (sLvLevel[v] > 0) amount = amount * CoopLv_TakenPct(sLvLevel[v]) / 100;
+    if (amount < 1) amount = 1;
+    if (TagBattle_Team(v) == 1) sLvRivalDamage += amount;
+    return amount;
+}
+void CoopLv_OnKO(BtlMemberChr *chr) {
+    if (sLvOn && chr->side >= 0 && chr->side < 10 && TagBattle_Team(chr->side) == 0) sLvDowns[chr->side]++;
+}
+/* For the experience (port/src/coop_story.c), whole numbers: the share of the rivals' lost health this player took
+   (thousandths), the partners it revived, the times it fell. */
+s32 CoopLv_DamageShareMille(s32 actor) {
+    if (!sLvOn || actor < 0 || actor >= 10 || sLvRivalDamage <= 0) return 0;
+    return (s32)((long long)sLvDealt[actor] * 1000 / sLvRivalDamage);
+}
+s32 CoopLv_Revives(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvRevives[actor] : 0; }
+s32 CoopLv_Downs(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvDowns[actor] : 0; }
 #endif

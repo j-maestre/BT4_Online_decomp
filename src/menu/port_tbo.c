@@ -1163,6 +1163,7 @@ static void Tb_TagRoomUpdate(s32 live){
     Pad *pad=&gPad[0];s32 dir,local=!strcmp(Port_TagCode(),"LOCAL0");
     Port_TagPoll();
     {const char *outcome=PortCoop_TakeOutcome();if(outcome)Tb_Say(outcome);} /* a chapter's closing or defeat line */
+    {extern int PortCoop_TakeZPoints(void);extern void PortCoop_AddMoney(s32);s32 zp=PortCoop_TakeZPoints();if(zp>0)PortCoop_AddMoney(zp);} /* its Z points */
     if(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6)){
         char why[128];Ps_Copy(why,(char*)Port_TagError(),128);Port_TagClose();
         if(PortCoop_Active()&&!sTb->tagJoin){Tb_CoopFail(why);return;}

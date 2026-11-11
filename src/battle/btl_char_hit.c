@@ -1074,6 +1074,16 @@ void BtlHit_CheckProximityAll(void) {
 /* Does this fighter's attack connect this frame? Needs an attack id, active hit volumes or "contact" (0x65), and
  * the opponent within 90 degrees of the facing (or attack flag 8). Marks the hit handled (0x60), then runs the
  * avoid / guard / throw-break tests in order; if none applies the opponent is stored as the pending target. */
+#ifdef PORT
+/* Levels (src/battle/coop_infinite.c): who strikes, around the hit */
+static void BtlHit_TestHit_CoopLvInner(HitChr *chr);
+void BtlHit_TestHit(HitChr *chr) {
+    extern s32 CoopLv_SetAttacker(s32 actor);
+    s32 before = CoopLv_SetAttacker(chr->side);
+    BtlHit_TestHit_CoopLvInner(chr); CoopLv_SetAttacker(before);
+}
+#define BtlHit_TestHit BtlHit_TestHit_CoopLvInner
+#endif
 void BtlHit_TestHit(HitChr *chr) {
 #ifdef PORT
     /* The native dispatcher has already established this contact pair. */
@@ -1127,6 +1137,9 @@ void BtlHit_TestHit(HitChr *chr) {
 
 /* Two fighters that hit each other in the same frame: the higher attack priority wins and the other hit is
  * dropped; equal priorities cancel both (spark effect, camera shake, vibration, held flag 0x5D). */
+#ifdef PORT
+#undef BtlHit_TestHit
+#endif
 void BtlHit_ResolveTrades(void) {
     s32 i;
     s32 j;
@@ -1167,6 +1180,16 @@ void BtlHit_ResolveTrades(void) {
  * defender's animation flags (or a "does not flinch" reaction 2 from the armour level comparison), fills the
  * defender's reaction block, shakes cameras and pads, then takes health with BtlMember_Damage and gives the attacker
  * its ki and gauge gains. */
+#ifdef PORT
+/* Levels (src/battle/coop_infinite.c): who strikes, around the hit */
+static void BtlHit_ApplyHit_CoopLvInner(HitChr *atk);
+void BtlHit_ApplyHit(HitChr *atk) {
+    extern s32 CoopLv_SetAttacker(s32 actor);
+    s32 before = CoopLv_SetAttacker(atk->side);
+    BtlHit_ApplyHit_CoopLvInner(atk); CoopLv_SetAttacker(before);
+}
+#define BtlHit_ApplyHit BtlHit_ApplyHit_CoopLvInner
+#endif
 void BtlHit_ApplyHit(HitChr *atk) {
     s32 drain = 0;
     s32 launch = 0;
@@ -1465,6 +1488,9 @@ void BtlHit_ApplyHit(HitChr *atk) {
  * effect scene's hit detection, BtlBodyHit_Update): guard-direction bookkeeping per fighter, then the clash test, the
  * rush test (each ends the step when it fires), the proximity test, per fighter the hit test, the trade
  * resolution, and per fighter the hit application. */
+#ifdef PORT
+#undef BtlHit_ApplyHit
+#endif
 void BtlColl_Update(void) {
     s32 i;
     HitChr *chr;

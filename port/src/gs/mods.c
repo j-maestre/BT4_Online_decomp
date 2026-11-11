@@ -837,7 +837,8 @@ static void coop_text(float x, float y, const char *t, unsigned col, float size)
 }
 static int coop_hud_wanted(const FpState *fp, const ModsGame *g) {
     extern int CoopInf_Active(void), CoopRevive_AnyDown(void);
-    return fp->battle && g->battle && (CoopInf_Active() || CoopRevive_AnyDown());
+    extern int CoopLv_Active(void);
+    return fp->battle && g->battle && (CoopInf_Active() || CoopRevive_AnyDown() || CoopLv_Active());
 }
 static void coop_hud(const FpState *fp, const ModsGame *g) {
     extern int CoopInf_Active(void), CoopInf_Wave(void), CoopInf_Defeated(void), CoopRevive_AnyDown(void);
@@ -846,6 +847,24 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
     char line[96];
 
     if (!coop_hud_wanted(fp, g)) return;
+    {   /* the players' names and levels, along the bottom (each one's copy of its fighter: port/src/coop_story.c) */
+        extern int CoopLv_Active(void), CoopLv_Level(int), TagBattle_Count(void), TagBattle_Team(int), TagBattle_LocalActor(void);
+        extern const char *Port_TagPlayerName(int);
+        int a, k = 0, n = TagBattle_Count();
+        if (CoopLv_Active())
+            for (a = 0; a < n && a < 10; a++) {
+                const char *name;
+                float x;
+                if (TagBattle_Team(a) != 0 || CoopLv_Level(a) <= 0) continue;
+                name = Port_TagPlayerName(a);
+                if (!name || !name[0]) name = k ? "Jugador 2" : "Jugador 1";
+                snprintf(line, sizeof(line), "%.20s  Nv %d", name, CoopLv_Level(a));
+                x = k ? cx + 120 : cx - 120;
+                coop_fill(x - 95, MODS_HUD_H - 30, 190, 22, 0x000000B0u, 6);
+                coop_text(x, MODS_HUD_H - 26, line, a == TagBattle_LocalActor() ? 0xFFD55BFFu : 0xFFFFFFE0u, 11);
+                k++;
+            }
+    }
     if (CoopInf_Active()) {
         int wave = CoopInf_Wave() + 1, boss = wave % 5 == 0;
         coop_fill(cx - 90, 6, 180, 38, 0x000000C8u, 6);

@@ -1457,6 +1457,16 @@ s32 BtlColl_TryAbsorb(s32 objId, BtlCollHit *hit) {
 
 /* First attempt of the hit detection for a landed hit: the guard. Returns 1 when the hit was guarded (or the
  * fighter has flag 0x59), 0 when BtlColl_Hit must handle it. */
+#ifdef PORT
+/* Levels (src/battle/coop_infinite.c): who strikes, around the hit */
+static s32 BtlColl_TryGuard_CoopLvInner(s32 objId, BtlCollHit *hit);
+s32 BtlColl_TryGuard(s32 objId, BtlCollHit *hit) {
+    extern s32 CoopLv_SetAttacker(s32 actor);
+    s32 before = CoopLv_SetAttacker(hit && hit->owner ? hit->owner->side : -1);
+    s32 r = BtlColl_TryGuard_CoopLvInner(objId, hit); CoopLv_SetAttacker(before); return r;
+}
+#define BtlColl_TryGuard BtlColl_TryGuard_CoopLvInner
+#endif
 s32 BtlColl_TryGuard(s32 objId, BtlCollHit *hit) {
     BtlCollChr *chr;
     s32 ret = 0;
@@ -1485,6 +1495,19 @@ s32 BtlColl_TryGuard(s32 objId, BtlCollHit *hit) {
 
 /* A hit lands on a fighter: dispatch by kind of hit, unless the pending reaction is one that cannot be replaced
  * (then the hit is consumed without effect). A hit that lands runs BtlChar_RaiseFirstClash on the attacker. */
+#ifdef PORT
+#undef BtlColl_TryGuard
+#endif
+#ifdef PORT
+/* Levels (src/battle/coop_infinite.c): who strikes, around the hit */
+static s32 BtlColl_Hit_CoopLvInner(s32 objId, BtlCollHit *hit);
+s32 BtlColl_Hit(s32 objId, BtlCollHit *hit) {
+    extern s32 CoopLv_SetAttacker(s32 actor);
+    s32 before = CoopLv_SetAttacker(hit && hit->owner ? hit->owner->side : -1);
+    s32 r = BtlColl_Hit_CoopLvInner(objId, hit); CoopLv_SetAttacker(before); return r;
+}
+#define BtlColl_Hit BtlColl_Hit_CoopLvInner
+#endif
 s32 BtlColl_Hit(s32 objId, BtlCollHit *hit) {
     BtlCollChr *chr;
     s32 ret = 0;
@@ -1536,6 +1559,9 @@ s32 BtlColl_Hit(s32 objId, BtlCollHit *hit) {
 }
 
 /* Plays only the contact sound of a hit (no fighter involved). */
+#ifdef PORT
+#undef BtlColl_Hit
+#endif
 void BtlColl_PlayContactSound(BtlCollHit *hit) {
     BtlCollChr *atk;
     s32 slot;

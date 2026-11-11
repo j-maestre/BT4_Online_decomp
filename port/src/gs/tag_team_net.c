@@ -454,7 +454,16 @@ static int coop_told_humans;static Uint64 coop_told_at; /* the chapter announced
 /* The character select's cursors: the chooser sends the cell it is on ("#hov:<seat>:<col>:<row>" in the room's chat,
    hidden from the chat lines), so the others see it move as in a 1 vs 1 online select. */
 static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_chara[TT_MAX_PLAYERS],hover_sent_col=-1,hover_sent_row=-1,hover_sent_seat=-1,hover_sent_chara=-1;static Uint64 hover_sent_at;
-void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=-1;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
+/* Historia cooperativa: each player's level for the fighter it chose ("#lv:<chara>:<level>", sent just before the
+ * choice itself, so the partner has it before the choice arrives); the battle and the load digest use it. */
+static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS];
+int Port_TagSeatLevel(int seat){
+    extern int PortCoop_Active(void),PortRpg_Level(int);
+    if(!PortCoop_Active()||seat<0||seat>=TT_MAX_PLAYERS||seat>=Tt_Capacity(&state)||state.players[seat].cpu||state.players[seat].chara<0)return 0;
+    if(seat==Tt_Seat(&state,member))return PortRpg_Level(state.players[seat].chara);
+    return lv_chara[seat]==state.players[seat].chara?lv_level[seat]:0;
+}
+void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=lv_chara[i]=-1;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
 int Port_TagHover(int seat,int *col,int *row,int *chara){
     if(seat<0||seat>=TT_MAX_PLAYERS||hover_col[seat]<0)return 0;*col=hover_col[seat];*row=hover_row[seat];*chara=hover_chara[seat];return 1;}
 void Port_TagHoverSend(int seat,int col,int row,int chara){
@@ -512,6 +521,7 @@ static uint64_t tag_load_digest(const TtRoom *r){
         hash=tag_load_digest_word(hash,(uint32_t)p->cpu);
         hash=tag_load_digest_word(hash,(uint32_t)p->difficulty);
         hash=tag_load_digest_word(hash,(uint32_t)p->confirmed);
+        hash=tag_load_digest_word(hash,(uint32_t)Port_TagSeatLevel(i)); /* (the co-op levels: both machines must agree) */
     }
     return hash;
 }
@@ -755,6 +765,10 @@ void Port_TagCommand(int command,int a,int b){
     write64(packet+24,(command==TTW_LOAD||command==TTW_LOADED)?tag_load_digest(&state):state.load_digest);
 
     if(command==TTW_CHOOSE)Ttw_Write(packet+20,(uint32_t)Port_TagDraftSeat());
+    if(command==TTW_CHOOSE&&Port_TagDraftSeat()==Tt_Seat(&state,member)){ /* Historia cooperativa: my level first */
+        extern int PortCoop_Active(void),PortRpg_Level(int);
+        if(PortCoop_Active()){char line[48];snprintf(line,sizeof(line),"#lv:%d:%d",a,PortRpg_Level(a));Port_TagChatSend(line);}
+    }
 
     request(packet);
 
@@ -854,6 +868,9 @@ void Port_TagPoll(void){
             for(j=0;j<159&&client.in[16+j];++j){unsigned char c=client.in[16+j];text[j]=c>=32&&c<127?c:'?';}text[j]=0;
 
             if(!strncmp(text,"#coop:",6)){extern void PortCoop_Announced(const char*);PortCoop_Announced(text+6);continue;} /* Historia cooperativa: the host's chapter */
+            if(!strncmp(text,"#lv:",4)){int c=-1,l=0; /* Historia cooperativa: the sender's level for its fighter */
+                if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d",&c,&l)==2&&c>=0&&c<512&&l>=0&&l<=100){lv_chara[seat]=c;lv_level[seat]=l;}
+                continue;}
             if(!strncmp(text,"#hov:",5)){int s=-1,c=-1,r=-1,f=-1; /* the character select: the cell the chooser is on, the fighter it shows (Port_TagHover) */
                 if(sscanf(text+5,"%d:%d:%d:%d",&s,&c,&r,&f)>=3&&s>=0&&s<TT_MAX_PLAYERS&&c>=0&&c<64&&r>=0&&r<64){hover_col[s]=c;hover_row[s]=r;hover_chara[s]=f>=0&&f<512?f:-1;}
                 continue;}

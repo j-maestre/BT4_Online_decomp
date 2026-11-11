@@ -251,6 +251,10 @@ s32 TagBattle_ConfigureLocal(void) {
         extern int PortCoop_Active(void);extern void CoopRevive_Configure(s32);
         CoopRevive_Configure((network&&PortCoop_Active())||(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_REVIVE_TEST")));
     }
+    {   /* Historia cooperativa: each player's fighter has its level (src/battle/coop_infinite.c, port/src/coop_story.c) */
+        extern int PortCoop_Active(void);extern void CoopLv_Configure(s32);
+        CoopLv_Configure((network&&PortCoop_Active())||(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_LV_TEST")));
+    }
     /* Local development match. The network battle protocol is not enabled here. */
     BattleSetup_SetRule(0,0,sTagBgm,(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_LONG_VIDEO"))?0:getenv("BT4_TAG_SPECTATOR_TEST")?0:(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_INF_TEST"))?0:getenv("BT4_TAG_LOCAL_TEST")?5:Port_TagTime(),4,sTagStage,0);
     for(i=0;i<count;++i){
@@ -260,6 +264,12 @@ s32 TagBattle_ConfigureLocal(void) {
         {   /* Historia cooperativa (port/src/coop_story.c): a chapter's rival has its own health (a boss has more) */
             extern int PortCoop_Active(void),PortCoop_FoeHealth(int),Port_TagTeamIndex(int);
             if(network&&PortCoop_Active()&&Port_TagCPU(i)&&Port_TagTeam(i)==1)health=(f32)PortCoop_FoeHealth(Port_TagTeamIndex(i));
+        }
+        {   extern s32 CoopLv_Active(void),CoopLv_HealthPct(s32);extern void CoopLv_SetLevel(s32,s32);extern int Port_TagSeatLevel(int);
+            s32 lv=Port_TagTeam(i)==0&&!Port_TagCPU(i)?Port_TagSeatLevel(i):0;
+            if(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_LV_TEST")&&Port_TagTeam(i)==0)lv=atoi(getenv("BT4_COOP_LV_TEST")); /* (test: the players' level) */
+            CoopLv_SetLevel(i,lv);
+            if(lv>0){health=health*(f32)CoopLv_HealthPct(lv)/100.0f;fprintf(stderr,"coop: actor %d level %d health %d\n",i,lv,(int)health);}
         }
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_TAG_SPECTATOR_TEST") && i==0)health=1.0f;
         if(getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_INF_TOUGH") && Port_TagTeam(i)==0)health=2000.0f; /* (test: players that last) */
@@ -340,7 +350,7 @@ void TagBattle_Prepare(void) {
     if(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_CAMERA_VIEW")){s32 a=atoi(getenv("BT4_TAG_CAMERA_VIEW"));sTagTestView=a>=0&&a<sTagActors?a:-1;}
     if(sTagActors>2)fprintf(stderr,"tag actors: loading %d independent actors\n",sTagActors);
 }
-void TagBattle_End(void) { extern void CoopInf_End(void),CoopRevive_Configure(s32);CoopInf_End();CoopRevive_Configure(0); extern void Port_ActorAdxStopAll(void);Port_ActorAdxStopAll();extern void TagClash_Reset(void);TagClash_Reset();sTagFreeForAll=0;sTagWinningActor=-1;sTagActors=2;sTagLocal=0;sTagTestView=-1;memset(sTagSides,0,sizeof(sTagSides)); }
+void TagBattle_End(void) { extern void CoopInf_End(void),CoopRevive_Configure(s32),CoopLv_Configure(s32);CoopInf_End();CoopRevive_Configure(0);CoopLv_Configure(0); extern void Port_ActorAdxStopAll(void);Port_ActorAdxStopAll();extern void TagClash_Reset(void);TagClash_Reset();sTagFreeForAll=0;sTagWinningActor=-1;sTagActors=2;sTagLocal=0;sTagTestView=-1;memset(sTagSides,0,sizeof(sTagSides)); }
 
 /* Returns the battle's shared state. */
 BattleWork *Battle_GetWork(void) {

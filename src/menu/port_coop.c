@@ -33,6 +33,7 @@ extern const char *PortCoop_ChTitle(int i), *PortCoop_ChSaga(int i), *PortCoop_C
 extern const char *PortCoop_ChFoeName(int i, int k);
 extern int PortCoop_ChFoeChara(int i, int k), PortCoop_ChFoeLevel(int i, int k), PortCoop_ChFoeHealth(int i, int k);
 extern int PortCoop_ChFoeCount(int i), PortCoop_ChReserveCount(int i), PortCoop_Unlocked(int i);
+extern const char *PortCoop_ChGrade(int i), *PortCoop_RewardLine(void);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
@@ -256,6 +257,10 @@ static void Co_Draw(void) {
             Co_Row(60.0f + slide, 380.0f + slide, 266.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
         }
         if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 302.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
+        else if (PortCoop_RewardLine()[0]) { /* the last battle's grade, Z points and experience */
+            sprintf(line, "\303\232ltimo combate: %.120s", PortCoop_RewardLine());
+            Co_Wrap(50.0f + slide, 302.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
+        }
         box = sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
             : sCo->start == 1
@@ -269,7 +274,9 @@ static void Co_Draw(void) {
         } else {
             for (i = sCo->top; i < count && i < sCo->top + CO_ROWS; i++) {
                 s32 open = PortCoop_Unlocked(i);
-                char *value = PortCoop_Done(i) ? "Completado" : open ? (char *)PortCoop_ChSaga(i) : "Bloqueado";
+                char done[40], *value;
+                sprintf(done, PortCoop_ChGrade(i)[0] ? "Nota %s" : "Completado", PortCoop_ChGrade(i));
+                value = PortCoop_Done(i) ? done : open ? (char *)PortCoop_ChSaga(i) : "Bloqueado";
                 Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
                        i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
             }

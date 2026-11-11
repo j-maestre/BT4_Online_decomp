@@ -354,7 +354,8 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
     extern s32 DevRules_ProtectHealth(void);
     if(amount>0&&DevRules_ProtectHealth())return 0;
 #ifdef PORT
-    { extern s32 CoopInf_ScaleDamage(BtlMemberChr *chr, s32 amount); amount = CoopInf_ScaleDamage(chr, amount); } /* (src/battle/coop_infinite.c) */
+    { extern s32 CoopInf_ScaleDamage(BtlMemberChr *chr, s32 amount); amount = CoopInf_ScaleDamage(chr, amount); }
+    { extern s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount); amount = CoopLv_ScaleDamage(chr, amount); } /* the players' levels */ /* (src/battle/coop_infinite.c) */
 #endif
     BtlMemberCombo *combo = &chr->combo;
     BtlMemberGauge *g = BtlMember_GetActiveGauge(chr);
@@ -499,7 +500,8 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
             BtlEvent_Raise(other, 0x51);
         }
 #ifdef PORT
-        { extern void CoopInf_OnKO(BtlMemberChr *chr); CoopInf_OnKO(chr); } /* the endless mode's next rival (src/battle/coop_infinite.c) */
+        { extern void CoopInf_OnKO(BtlMemberChr *chr); CoopInf_OnKO(chr); }
+        { extern void CoopLv_OnKO(BtlMemberChr *chr); CoopLv_OnKO(chr); } /* the endless mode's next rival (src/battle/coop_infinite.c) */
 #endif
     }
     if (amount > 0) {

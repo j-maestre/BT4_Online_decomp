@@ -778,3 +778,13 @@ s32 MisResult_Run(s32 section) {
     Dma_ResetBuffers();
     return result;
 }
+
+#ifdef PORT
+/* Historia cooperativa (port/src/coop_story.c): the Z points a co-op battle earned, into the save's money (written
+   with the save, as the story mode's are). */
+void PortCoop_AddMoney(s32 n) {
+    if (gSaveData == NULL || n <= 0) return;
+    P_SAVE->money += n;
+    if (P_SAVE->money > P_MONEY_MAX) P_SAVE->money = P_MONEY_MAX;
+}
+#endif
