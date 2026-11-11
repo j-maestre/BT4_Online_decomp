@@ -141,6 +141,10 @@ int __wrap_Progress_Main(int arg) {
                         extern int gPortScreen;
                         gProgress->mode=80;gPortScreen=1;
                     }
+                    if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_PICK_TEST")) { /* (the co-op screen, then "Mi personaje") */
+                        extern int gPortScreen;
+                        gProgress->mode = 80; gPortScreen = 3;
+                    }
                     testEntered = 1;
                     fprintf(stderr, "bt4: test menu mode %d\n", gProgress->mode);
                 }

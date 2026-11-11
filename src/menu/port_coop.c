@@ -49,6 +49,7 @@ typedef struct CoopScreen {
 
 static CoopScreen *sCo;
 static void Co_PickOpen(void);
+static s32 sCoPickBack, sCoPickTested; /* back from "Mi personaje": on its row */
 
 /* The game's 16-bit text for the message box, from UTF-8. */
 static u16 *Co_Box(const char *utf8) {
@@ -128,7 +129,7 @@ static void Co_StartUpdate(void) {
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
-        if (sCo->start == 4) Co_PickOpen();
+        if (sCo->start == 4) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
         else if (sCo->start == 0) Co_SetPage(CO_LIST);
         else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
         else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
@@ -392,14 +393,16 @@ static void Co_Draw(void) {
 }
 
 /* ---------------------------------------------------------------------------------------------- the frame loop */
-/* Returns 1 when left for the online screens (gPortTboCoop says what to do there), 0 back to the main menu. */
+/* Returns 1 when left for the online screens (gPortTboCoop says what to do there), 2 for "Mi personaje"'s select,
+   0 back to the main menu. */
 s32 PortCoop_Run(void) {
     s32 go, before = PortCoop_Selected(), joined = PortCoop_Joining();
 
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
-    if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
+    if (sCoPickBack) { sCo->start = 4; sCoPickBack = 0; }
+    else if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
     else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
     else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on the list */
         sCo->cur = before;
@@ -409,6 +412,7 @@ s32 PortCoop_Run(void) {
     PortCoop_Select(-1); /* (an ordinary room until a chapter is chosen again) */
     Co_WinInit();
     ColorFade_StartIn(0, 0, 0, 0x14);
+    if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_PICK_TEST") && !sCoPickTested) { sCoPickTested = 1; sCoPickBack = 1; Co_Leave(2); } /* (test) */
     while (1) {
         s32 live;
 

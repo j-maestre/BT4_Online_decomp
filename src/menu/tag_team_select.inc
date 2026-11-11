@@ -319,6 +319,72 @@ static void TagCoop_AddMine(void){
 }
 static s32 TagCoop_OnMine(s32 col,s32 row){return sCoopMineCell>=0&&row*TS_COLS+col==sCoopMineCell;}
 
+/* "Mi personaje" (src/menu/port_coop.c): the fight's own character select, alone, to choose the player's own fighter:
+   one cursor, on the left, starting on the current one; the character confirmed (its form too) becomes the fighter.
+   Returns 1 when one was chosen, 0 when left with TRIANGLE. */
+s32 TeamSel_PickMineRun(void){
+    extern int PortRpg_MyChara(void);extern void PortRpg_SetMyChara(int);extern void Port_TagUiCapture(s32);
+    TsTeam saved[2];s32 oldPlayers=gTsProgress->players,oldType=gTsProgress->battleType;
+    s32 i,c,j,exit=0,chosen=-1,mine=PortRpg_MyChara(),frames=0,test=getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_PICK_TEST");
+    Pad savedPads[2];SaveData *savedSave;TeamSelSide *side;
+    saved[0]=gTsProgress->team[0];saved[1]=gTsProgress->team[1];
+    savedSave=Heap_Alloc(SAVE_SIZE,0x20,0,2);memcpy(savedSave,gSaveData,SAVE_SIZE);Save_UnlockAll(gSaveData);
+    memset(gTsProgress->team,0,sizeof(gTsProgress->team));
+    for(i=0;i<5;++i){gTsProgress->team[0].member[i].chara=-1;gTsProgress->team[1].member[i].chara=-1;}
+    if(test){fprintf(stderr,"coop pick: init\n");fflush(stderr);}
+    gTsProgress->players=TEAMSEL_PLAYERS_TWO;gTsProgress->battleType=1;TeamSel_Init(2);
+    sTagSelectActive=0;sCoopMineCell=-1;
+    if(test){fprintf(stderr,"coop pick: ready\n");fflush(stderr);}
+    side=gTeamSel->side[0];side->cur=0;side->state=TEAMSEL_ST_GRID;
+    for(c=0;c<gTeamSel->masterCount[0];++c){TsCell *g=&gTeamSel->cells[0][c];s32 hit=g->id==mine;
+        for(j=0;j<g->formCount&&j<7;++j)if(g->form[j]==mine)hit=1;
+        if(hit&&ChrGrid_IsSelectable(gTeamSel->cells[0],c)){side->member[0].col=c%TS_COLS;side->member[0].row=c/TS_COLS;break;}}
+    TeamSel_SetChips(0);side->chara=side->chip[0][side->member[0].col];TeamSel_RequestFace(0);
+    Flash_GotoLabel(&gTeamSel->flash[1],"fl_out",1);Flash_GotoLabel(&gTeamSel->flash[3],"fl_in",1);
+    TeamSel_ClipGoto(3,0,TEAMSEL_CLIP_CHIP,"fl_on_start");
+    ColorFade_StartIn(0,0,0,0x14);
+    while(!exit||!ColorFade_IsOutDone()){
+        s32 canInput,result=1;
+        Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
+        Pad_Update();Snd_Update();ColorFade_Update();
+        canInput=!exit&&ColorFade_IsInDone()&&(gTeamSel->flash[0].flags&MFLASH_PAD);
+        if(test&&canInput){ /* (test: a look, then the cell to the right, confirmed) */
+            ++frames;if(frames==40)Port_TagUiCapture(80);
+            if(frames==50){gPad[0].gamePressed=gPad[0].gameRepeat=PADG_RIGHT;}
+            else if(frames>60&&frames%20==0){gPad[0].gamePressed=PADG_CROSS;gPad[0].gameRepeat=0;}
+        }
+        if(canInput&&(gPad[0].gamePressed&PADG_TRIANGLE)&&side->state==TEAMSEL_ST_GRID){
+            exit=1;ColorFade_StartOut(0,0,0,0x14);Snd_PlaySe(1,2);
+        }
+        savedPads[0]=gPad[0];savedPads[1]=gPad[1];
+        memset(&gPad[1].held,0,sizeof(Pad)-0x148);
+        if(exit)memset(&gPad[0].held,0,sizeof(Pad)-0x148);
+        side->member[0].plate=0;gTeamSel->plateCount[0]=1;
+        TeamSel_Update();
+        if(canInput&&!exit)TeamSel_Input(&result);
+        if(!exit&&side->memberCount>0){
+            chosen=side->member[0].chara;exit=1;ColorFade_StartOut(0,0,0,0x14);
+            if(getenv("BT4_RENDER_TEST"))fprintf(stderr,"coop: my own fighter chosen on the select: chara %d\n",chosen);
+        }
+        gPad[0]=savedPads[0];gPad[1]=savedPads[1];
+        TeamSel_Draw();Font_FlushAll();
+        {   extern int Port_MenusWide(void);f32 left;
+            Ps_PageSet();left=Port_MenusWide()?Ps_Left():0;
+            Ps_Align(0);Ps_Panel(TBO_KIT_WINDOW,10+left,1,502-left,29,0x78);
+            Ps_Text(24+left,7,"HISTORIA COOPERATIVA | MI PERSONAJE",.56f,470-2*left,3);
+            Ps_Panel(TBO_KIT_WINDOW,10+left,431,502-left,447,0x78);
+            Ps_Text(20+left,433,"Elige qui\303\251n quieres ser: tu copia, con tu nivel. TRI\303\201NGULO: volver",.43f,470-2*left,0);
+        }
+        ColorFade_Draw();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
+    }
+    while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE||gTeamSel->stageState!=TEAMSEL_LOAD_IDLE){TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();}
+    TeamSel_Term();Dma_ResetBuffers();
+    gTsProgress->team[0]=saved[0];gTsProgress->team[1]=saved[1];gTsProgress->players=oldPlayers;gTsProgress->battleType=oldType;
+    memcpy(gSaveData,savedSave,SAVE_SIZE);Heap_Free(savedSave);
+    if(chosen>=0&&chosen<512)PortRpg_SetMyChara(chosen);
+    return chosen>=0;
+}
+
 #include "tag_team_select_test.inc"
 
 static void TagCatalog_Exit(void){extern void exit(s32);exit(0);}

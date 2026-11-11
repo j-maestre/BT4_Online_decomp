@@ -692,9 +692,12 @@ s32 PortScreen_Main(void) {
         break;
     case PORT_SCREEN_COOP:
         Bgm_Play(0x816 + 2);
+        { extern void Port_TraceLine(const char *); Port_TraceLine("coop screen: run"); }
         result = PortCoop_Run();
+        { extern void Port_TraceInt(const char *, int); Port_TraceInt("coop screen: left", result); }
         Adx_StopAll();
-        if (result) { gPortScreen = PORT_SCREEN_TBO; gProgress->mode = 80; } /* the room, on the online screens */
+        if (result == 2) { extern s32 TeamSel_PickMineRun(void); TeamSel_PickMineRun(); gPortScreen = PORT_SCREEN_COOP; gProgress->mode = 80; } /* "Mi personaje" */
+        else if (result) { gPortScreen = PORT_SCREEN_TBO; gProgress->mode = 80; } /* the room, on the online screens */
         else gProgress->mode = 4;
         result = 0;
         break;

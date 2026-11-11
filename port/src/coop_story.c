@@ -278,6 +278,8 @@ int PortRpg_MyChara(void) { int c = Port_Setting("coop_mi_chara", 1); return c >
 void PortRpg_SetMyChara(int chara) { Port_SettingSave("coop_mi_chara", chara); Port_SettingsWrite(); }
 void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
 int PortRpg_UsingMine(void) { return sUsingMine; }
+void Port_TraceLine(const char *s) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s\n", s); fflush(stderr); } }
+void Port_TraceInt(const char *s, int v) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s %d\n", s, v); fflush(stderr); } }
 static int PortRpg_Xp(void) { return Port_Setting("coop_mi_xp", 0); }
 /* experience from level L to L+1 */
 static int rpg_need(int level) { return 40 + 5 * level; }
