@@ -326,6 +326,327 @@ return {
         cierre = "¡Bu ha sido derrotado! Habéis completado la Historia cooperativa. ¡Enhorabuena!",
         derrota = "Bu Puro grita y el planeta tiembla. Otra vez.",
     },
+    -- ------------------------------------------------------------------ Saga de las Películas
+    {
+        id = "p1_turles",
+        saga = "Saga de las Películas",
+        titulo = "El Árbol del Poder",
+        pareja = "Goku (Med) y Gohan (Niño)",
+        rivales = {
+            { personaje = 121, nivel = 3, vida = 220, nombre = "Turles" },
+            { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman" },
+            { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman" },
+        },
+        refuerzos = {
+            { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman", detras = 2 },
+            { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman", detras = 3 },
+            { personaje = 121, nivel = 3, vida = 160, nombre = "Turles (fruto del árbol)", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Turles, un saiyajin idéntico a Goku, ha plantado el Árbol del Poder y se come sus frutos. "
+             .. "Cuando creáis que ha caído, comerá otro fruto y volverá con fuerzas renovadas.",
+        cierre = "El Árbol del Poder se derrumba y Turles con él. La Tierra vuelve a respirar.",
+        derrota = "Turles se come otro fruto mientras os mira desde arriba.",
+    },
+    {
+        id = "p2_slug",
+        saga = "Saga de las Películas",
+        titulo = "El súper namekiano",
+        pareja = "Piccoro (Fin) y Gohan (Niño)",
+        rivales = {
+            { personaje = 123, nivel = 3, vida = 260, nombre = "Slug" },
+            { personaje = 182, nivel = 2, vida = 150, nombre = "Garlick Jr." },
+        },
+        refuerzos = {
+            { personaje = 183, nivel = 3, vida = 200, nombre = "Súper Garlick Jr.", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Slug, un namekiano malvado, quiere congelar la Tierra para convertirla en su nave. "
+             .. "Garlick Jr. ha vuelto de la Zona Muerta para ayudarle. Es la hora de Piccoro.",
+        cierre = "Slug y Garlick Jr. han caído. Piccoro sonríe, aunque no lo reconocerá nunca.",
+        derrota = "La Tierra se queda a oscuras bajo el dominio de Slug.",
+    },
+    {
+        id = "p3_cooler",
+        saga = "Saga de las Películas",
+        titulo = "La venganza de Cooler",
+        pareja = "Goku (Med) y Piccoro (Fin)",
+        rivales = {
+            { personaje = 126, nivel = 3, vida = 220, nombre = "Cooler" },
+            { personaje = 186, nivel = 2, vida = 160, nombre = "Salza" },
+        },
+        refuerzos = {
+            { personaje = 127, nivel = 3, vida = 280, nombre = "Cooler (Forma final)", detras = 1 },
+            { personaje = 128, nivel = 3, vida = 200, nombre = "Metal Cooler", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "El hermano mayor de Freezer viene a vengar a la familia, con su escuadrón personal. "
+             .. "Cooler tiene una transformación que su hermano nunca tuvo. Y no será la última vez que lo veáis.",
+        cierre = "Cooler cae al sol. Pero en algún lugar del espacio, una máquina empieza a reconstruirlo...",
+        derrota = "Cooler: «Mi hermano era un aficionado».",
+    },
+    {
+        id = "p4_bojack",
+        saga = "Saga de las Películas",
+        titulo = "El torneo de Bojack",
+        pareja = "Gohan (Joven) y Trunks",
+        rivales = {
+            { personaje = 166, nivel = 3, vida = 220, nombre = "Bojack" },
+            { personaje = 187, nivel = 2, vida = 160, nombre = "Zangya" },
+        },
+        refuerzos = {
+            { personaje = 136, nivel = 3, vida = 260, nombre = "Súper Bojack", detras = 1 },
+            { personaje = 187, nivel = 2, vida = 140, nombre = "Zangya", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Bojack y su banda de piratas espaciales han interrumpido el torneo de Mr. Satan. "
+             .. "Goku no está: el mundo depende de los jóvenes guerreros.",
+        cierre = "Bojack ha caído. Gohan ha demostrado que es digno sucesor de su padre.",
+        derrota = "Bojack ríe: «¿Esto es lo mejor que tiene la Tierra?».",
+    },
+    {
+        id = "p5_broly",
+        saga = "Saga de las Películas",
+        titulo = "El Súper Saiyajin Legendario",
+        pareja = "Goku (Fin) y Vegeta",
+        rivales = {
+            { personaje = 188, nivel = 3, vida = 220, nombre = "Broly" },
+        },
+        refuerzos = {
+            { personaje = 189, nivel = 3, vida = 260, nombre = "Broly (Súper Saiyajin)" },
+            { personaje = 190, nivel = 4, vida = 350, nombre = "Broly (Legendario)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Un saiyajin nacido con un poder sin límites. Cada vez que lo derribáis se levanta más fuerte "
+             .. "y más furioso. Solo dos contra uno, pero ese uno es Broly.",
+        cierre = "Broly cae por fin. Vegeta tiembla un poco, pero dirá que era el frío.",
+        derrota = "«¡KAKAROTTO!» Broly no ha tenido piedad.",
+    },
+    {
+        id = "p6_janemba",
+        saga = "Saga de las Películas",
+        titulo = "El caos del Más Allá",
+        pareja = "Goku (Fin) y Vegeta",
+        rivales = {
+            { personaje = 137, nivel = 3, vida = 280, nombre = "Janemba" },
+            { personaje = 97, nivel = 2, vida = 160, nombre = "King Cold (resucitado)" },
+            { personaje = 94, nivel = 2, vida = 160, nombre = "Freezer (resucitado)" },
+        },
+        refuerzos = {
+            { personaje = 138, nivel = 4, vida = 320, nombre = "Súper Janemba", detras = 1 },
+            { personaje = 107, nivel = 2, vida = 160, nombre = "Cell (resucitado)", detras = 3 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Janemba ha roto la frontera entre la vida y la muerte, y los villanos del pasado han vuelto. "
+             .. "Freezer, King Cold y Cell os esperan. Janemba guarda su verdadera forma para el final.",
+        cierre = "Janemba ha sido purificado. Los muertos vuelven a su sitio... por ahora.",
+        derrota = "El Más Allá se queda sumido en el caos.",
+    },
+    -- ------------------------------------------------------------------ Saga GT
+    {
+        id = "g1_baby",
+        saga = "Saga GT",
+        titulo = "El parásito Baby",
+        pareja = "Goku (GT) y Pan",
+        rivales = {
+            { personaje = 140, nivel = 3, vida = 240, nombre = "Baby Vegeta" },
+            { personaje = 31, nivel = 2, vida = 150, nombre = "Vegeta (controlado)" },
+        },
+        refuerzos = {
+            { personaje = 141, nivel = 3, vida = 280, nombre = "Súper Baby", detras = 1 },
+            { personaje = 142, nivel = 4, vida = 300, nombre = "Súper Baby (2.ª forma)", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Baby, el último tsufur, ha poseído a Vegeta y a casi toda la Tierra. "
+             .. "Cada vez que lo derrotáis, crece y se hace más fuerte.",
+        cierre = "Baby abandona el cuerpo de Vegeta y huye. La Tierra es libre otra vez.",
+        derrota = "Baby: «Todos los saiyajin seréis mis esclavos».",
+    },
+    {
+        id = "g2_17",
+        saga = "Saga GT",
+        titulo = "Súper Androide 17",
+        pareja = "Goku (GT) y Androide n.º 18",
+        rivales = {
+            { personaje = 101, nivel = 3, vida = 200, nombre = "Androide n.º 17 (Infierno)" },
+            { personaje = 185, nivel = 2, vida = 150, nombre = "Dr. Gero" },
+        },
+        refuerzos = {
+            { personaje = 144, nivel = 4, vida = 320, nombre = "Súper Androide 17", detras = 1 },
+            { personaje = 103, nivel = 2, vida = 150, nombre = "Androide n.º 19", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "El Dr. Gero ha unido a los dos Androides 17, el de la Tierra y el del Infierno. "
+             .. "El resultado absorbe la energía de todo lo que le lanzáis.",
+        cierre = "Súper 17 estalla. 18 ha vengado a Krilin.",
+        derrota = "Súper 17 absorbe vuestra última ráfaga y sonríe.",
+    },
+    {
+        id = "g3_shenron",
+        saga = "Saga GT",
+        titulo = "Los Dragones Oscuros",
+        pareja = "Goku (GT) y Vegeta (GT)",
+        rivales = {
+            { personaje = 146, nivel = 3, vida = 220, nombre = "Eis Shenron" },
+            { personaje = 145, nivel = 3, vida = 220, nombre = "Neo Shenron" },
+        },
+        refuerzos = {
+            { personaje = 197, nivel = 3, vida = 280, nombre = "Syn Shenron", detras = 1 },
+            { personaje = 147, nivel = 4, vida = 380, nombre = "Omega Shenron", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Usar las Bolas de Dragón tantas veces tenía un precio: los Dragones Oscuros. "
+             .. "El último de ellos ha absorbido las siete esferas. El final de todo Dragon Ball.",
+        cierre = "Omega Shenron desaparece en una Genkidama. Gracias por jugar, guerreros.",
+        derrota = "Omega Shenron: «Este universo es mío».",
+    },
+    -- ------------------------------------------------------------------ Saga Super
+    {
+        id = "u1_golden",
+        saga = "Saga Super",
+        titulo = "La resurrección de Freezer",
+        pareja = "Goku (Fin) y Vegeta",
+        rivales = {
+            { personaje = 94, nivel = 3, vida = 220, nombre = "Freezer (Forma final)" },
+            { personaje = 79, nivel = 2, vida = 140, nombre = "Soldado de Freezer" },
+            { personaje = 84, nivel = 2, vida = 140, nombre = "Soldado de Freezer" },
+        },
+        refuerzos = {
+            { personaje = 70, nivel = 4, vida = 320, nombre = "Golden Freezer", detras = 1 },
+            { personaje = 82, nivel = 2, vida = 140, nombre = "Soldado de Freezer", detras = 2 },
+            { personaje = 88, nivel = 2, vida = 140, nombre = "Soldado de Freezer", detras = 3 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Freezer ha resucitado con mil soldados y cuatro meses de entrenamiento. "
+             .. "Primero su ejército, después su nueva forma dorada.",
+        cierre = "Golden Freezer cae. Esta vez el emperador ha aprendido a entrenar... y aun así no basta.",
+        derrota = "Freezer: «¡Mirad mi forma más hermosa!».",
+    },
+    {
+        id = "u2_black",
+        saga = "Saga Super",
+        titulo = "El futuro de Trunks",
+        pareja = "Trunks (DBS) y Vegeta",
+        rivales = {
+            { personaje = 99, nivel = 3, vida = 240, nombre = "Black Goku" },
+            { personaje = 157, nivel = 3, vida = 220, nombre = "Zamas" },
+        },
+        refuerzos = {
+            { personaje = 34, nivel = 3, vida = 260, nombre = "Black Goku (Rosé)", detras = 1 },
+            { personaje = 76, nivel = 4, vida = 360, nombre = "Zamas (Fusión)", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "En el futuro de Trunks, un dios ha robado el cuerpo de Goku. Black y Zamas son inmortales "
+             .. "por separado... y cuando se fusionan, mucho peor.",
+        cierre = "Zamas ha sido borrado. El futuro tiene, al menos, una oportunidad.",
+        derrota = "Zamas: «Los mortales sois un error que hay que corregir».",
+    },
+    {
+        id = "u3_u6",
+        saga = "Saga Super",
+        titulo = "Los saiyajin del Universo 6",
+        pareja = "Goku (Fin) y Gohan",
+        rivales = {
+            { personaje = 119, nivel = 3, vida = 180, nombre = "Caulifla (Súper Saiyajin)" },
+            { personaje = 199, nivel = 3, vida = 200, nombre = "Kale (Súper Saiyajin)" },
+            { personaje = 134, nivel = 2, vida = 160, nombre = "Cabba (Súper Saiyajin)" },
+        },
+        refuerzos = {
+            { personaje = 104, nivel = 3, vida = 260, nombre = "Kefla", detras = 1 },
+            { personaje = 154, nivel = 4, vida = 320, nombre = "Kefla (Súper Saiyajin)", detras = 1 },
+            { personaje = 78, nivel = 3, vida = 220, nombre = "Hit", detras = 3 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Los saiyajin del Universo 6 quieren demostrar quién es más fuerte. Tres a la vez, y si Caulifla "
+             .. "y Kale se ponen los pendientes Potara... Kefla. Y Hit espera su turno.",
+        cierre = "Los saiyajin del Universo 6 os dan la mano. Ha sido un honor.",
+        derrota = "Caulifla: «¡Así se lucha, hermana!».",
+    },
+    {
+        id = "u4_poder",
+        saga = "Saga Super",
+        titulo = "El Torneo del Poder",
+        pareja = "Goku (Fin) y Vegeta",
+        rivales = {
+            { personaje = 81, nivel = 3, vida = 240, nombre = "Toppo" },
+            { personaje = 151, nivel = 4, vida = 380, nombre = "Jiren" },
+        },
+        refuerzos = {
+            { personaje = 150, nivel = 4, vida = 300, nombre = "Toppo (Hakaishin)", detras = 1 },
+            { personaje = 151, nivel = 4, vida = 300, nombre = "Jiren (al límite)", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "El reto final. El Universo 11 manda a sus mejores: Toppo, aspirante a dios de la destrucción, "
+             .. "y Jiren, el guerrero más fuerte que habéis visto. Jiren tiene el doble de vida... dos veces.",
+        cierre = "¡Habéis ganado el Torneo del Poder! Ya no queda nadie en el universo que pueda con vosotros.",
+        derrota = "Jiren os mira sin inmutarse: «La fuerza lo es todo».",
+    },
+    -- ------------------------------------------------------------------ Saga de los Gigantes (2 contra 1)
+    {
+        id = "x1_ozaru",
+        saga = "Saga de los Gigantes",
+        titulo = "La luna llena",
+        pareja = "Krilin y Piccoro (Inicio)",
+        rivales = {
+            { personaje = 12, nivel = 3, vida = 320, nombre = "Ozaru" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Ha salido la luna llena y un saiyajin se ha transformado en un mono gigante. Es lento pero cada golpe duele. Dos contra uno: rodeadlo.",
+        cierre = "El Ozaru cae con un estruendo. Alguien debería cortarle la cola de una vez.",
+        derrota = "El Ozaru ruge a la luna. Habéis acabado aplastados.",
+    },
+    {
+        id = "x2_slug",
+        saga = "Saga de los Gigantes",
+        titulo = "Slug gigante",
+        pareja = "Goku (Med) y Piccoro (Fin)",
+        rivales = {
+            { personaje = 124, nivel = 3, vida = 340, nombre = "Slug (Gigante)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Slug ha crecido hasta el tamaño de una montaña. Atacad desde los lados: de frente no hay quien lo pare.",
+        cierre = "El gigante se desploma. Ni el tamaño salva a Slug.",
+        derrota = "Slug os aplasta con una sola mano.",
+    },
+    {
+        id = "x3_cellmax",
+        saga = "Saga de los Gigantes",
+        titulo = "Cell Max",
+        pareja = "Gohan (Joven) y Piccoro (Fin)",
+        rivales = {
+            { personaje = 108, nivel = 4, vida = 380, nombre = "Cell Max" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "El Dr. Gero tenía un plan B: Cell Max, un monstruo gigante sin cerebro y sin piedad. Buscad su punto débil en la cabeza.",
+        cierre = "Cell Max explota. El último invento del Dr. Gero ha fracasado.",
+        derrota = "Cell Max arrasa con todo lo que encuentra.",
+    },
+    {
+        id = "x4_hildegarn",
+        saga = "Saga de los Gigantes",
+        titulo = "El demonio de la flauta",
+        pareja = "Goku (Fin) y Gohan",
+        rivales = {
+            { personaje = 195, nivel = 4, vida = 380, nombre = "Hildegarn" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Hildegarn, el demonio que dormía en una melodía, ha despertado. Solo la flauta de Tapion lo debilita... y no la tenéis.",
+        cierre = "Hildegarn vuelve a dormir para siempre. La melodía se apaga.",
+        derrota = "La melodía de Hildegarn os deja sin fuerzas.",
+    },
+    {
+        id = "x5_babyozaru",
+        saga = "Saga de los Gigantes",
+        titulo = "El Ozaru dorado",
+        pareja = "Goku (GT) y Vegeta (GT)",
+        rivales = {
+            { personaje = 143, nivel = 4, vida = 400, nombre = "Súper Baby (Ozaru)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Baby ha usado la luz de la Tierra para transformarse en un Ozaru dorado. El gigante más fuerte de todos: el último reto.",
+        cierre = "El Ozaru dorado cae. Ya no queda ningún gigante en pie.",
+        derrota = "El Ozaru dorado os mira desde lo alto y se ríe.",
+    },
 }
 
 -- Números de personaje (lista sacada del propio juego):
@@ -339,3 +660,9 @@ return {
 --   117 Bu (Forma pura)  121 Turles  123 Slug  126 Cooler  127 Cooler (Forma final)  128 Metal Cooler
 --   137 Janemba  166 Bojack  170 Nappa (Ozaru)  184 Saibaman  185 Dr. Gero  188 Broly  190 Broly (Legendario)
 --   192 Majin Bu (Pura maldad)  194 Spopovich
+--   34 Black Goku (Rosé)  70 Golden Freezer  76 Zamas (Fusión)  78 Hit  81 Toppo  99 Black Goku  104 Kefla
+--   119 Caulifla (SS)  134 Cabba (SS)  136 Súper Bojack  138 Súper Janemba  140 Baby Vegeta  141 Súper Baby
+--   142 Súper Baby (2.ª forma)  144 Súper 17  145 Neo Shenron  146 Eis Shenron  147 Omega Shenron  150 Toppo (Hakaishin)
+--   151 Jiren  154 Kefla (SS)  157 Zamas  182 Garlick Jr.  183 Súper Garlick Jr.  186 Salza  187 Zangya  189 Broly (SS)
+--   197 Syn Shenron  199 Kale (SS)
+--   Gigantes (solos, en 2 contra 1 y sin refuerzos): 12 Ozaru  108 Cell Max  124 Slug (Gigante)  143 Súper Baby (Ozaru)  195 Hildegarn

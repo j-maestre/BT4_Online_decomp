@@ -273,6 +273,7 @@ s32 TagBattle_ConfigureLocal(void) {
         BattleSetup_SetSide(i,(Port_TagCPU(i)||(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_VIDEO_TEST")))?BTL_CONTROL_CPU:BTL_CONTROL_PAD,0,1,1,1,0,NULL);
         BattleSetup_SetMember(i,0,Port_TagPlayerChara(i),Port_TagPlayerCostume(i),0,levels[d],health,
                              TagBattle_GetDraftItems(i,Port_TagPlayerChara(i)));
+        if(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_TEST_FOE")&&i==1)BattleSetup_SetMember(i,0,atoi(getenv("BT4_TAG_TEST_FOE")),0,0,levels[d],health,NULL); /* (test: the first rival's fighter) */
         {   /* Historia cooperativa: the chapter's reinforcements behind this rival; the battle brings the next one in
                when it falls, as a team battle does (and src/battle/btl_seq.c does not end the fight while one is left) */
             extern int PortCoop_Active(void),PortCoop_ReserveCount(int),PortCoop_Reserve(int,int,int*,int*,int*,int*),Port_TagTeamIndex(int);
