@@ -1763,9 +1763,19 @@ static void Tb_NameUpdate(s32 live) {
             Port_NetNameSave(sTb->typed);
             Tb_Note("SAVED: YOUR RIVALS WILL SEE THIS NAME");
             Tb_SetMode(TB_PROFILE);
-        } else if (sTb->nicknameState != BT4_NICKNAME_LOADING && Port_OnlineNicknameSubmit(sTb->typed)) {
-            sTb->nicknameSaving = 1;
-            Tb_Note("Reserving your nickname...");
+        } else {
+            if (!sTb->nicknameRequired) { /* (a change: the rooms use it from now on, whatever the server says) */
+                Port_NetNameSave(sTb->typed);
+                Port_SettingSave("net_name_mine", 1);
+                Port_SettingsWrite();
+            }
+            if (sTb->nicknameState != BT4_NICKNAME_LOADING && Port_OnlineNicknameSubmit(sTb->typed)) {
+                sTb->nicknameSaving = 1;
+                Tb_Note("Reserving your nickname...");
+            } else if (!sTb->nicknameRequired) {
+                Tb_Note("SAVED: YOUR RIVALS WILL SEE THIS NAME");
+                Tb_SetMode(TB_PROFILE);
+            }
         }
         Snd_PlaySe(1, 1);
     } else if (done == -1) {
@@ -1782,16 +1792,19 @@ static void Tb_NicknameUpdate(s32 live) {
     if(sTb->nicknameSaving&&sTb->nicknameState!=BT4_NICKNAME_SAVING&&sTb->nicknameState!=BT4_NICKNAME_LOADING){
         sTb->nicknameSaving=0;
         if(sTb->nicknameState==BT4_NICKNAME_READY){
-            Port_NetNameSave(name);
+            if(!Port_Setting("net_name_mine",0))Port_NetNameSave(name);
             Tb_Note("SAVED: YOUR RIVALS WILL SEE THIS NAME");
             Tb_SetMode(sTb->nicknameRequired?TB_HUB:TB_PROFILE);
             sTb->nicknameRequired=0;
+        }else if(Port_Setting("net_name_mine",0)&&!sTb->nicknameRequired){ /* the server kept the old one: the rooms show the new one anyway */
+            Tb_Note("SAVED: YOUR RIVALS WILL SEE THIS NAME");
+            Tb_SetMode(TB_PROFILE);
         }else{
             Tb_Note(sTb->nicknameState==BT4_NICKNAME_TAKEN?"That nickname is already taken.":
                     sTb->nicknameState==BT4_NICKNAME_INVALID?"Choose a valid nickname.":"Could not verify your nickname. Try again.");
         }
-    }else if(sTb->nicknameState==BT4_NICKNAME_READY&&previous!=BT4_NICKNAME_READY){
-        Port_NetNameSet(name);
+    }else if(sTb->nicknameState==BT4_NICKNAME_READY&&previous!=BT4_NICKNAME_READY&&!Port_Setting("net_name_mine",0)){
+        Port_NetNameSet(name); /* (the server's nickname, unless the player changed the name here since) */
     }
     if(sTb->mode==TB_NAME&&sTb->nicknameRequired&&
        (sTb->nicknameState==BT4_NICKNAME_OPTIONAL||sTb->nicknameState==BT4_NICKNAME_DISABLED)){

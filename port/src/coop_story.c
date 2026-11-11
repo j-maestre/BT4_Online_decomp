@@ -274,9 +274,11 @@ static int sRewardZp;
 static const char *const kGrades[8] = {"", "E", "D", "C", "B", "A", "S", "Z"};
 
 static int sUsingMine; /* the last pick was my own fighter's cell (src/menu/tag_team_select.inc) */
+static int sPickedLevel; /* its level when picked: kept for a rematch with the same picks (the partner was told this one) */
 int PortRpg_MyChara(void) { int c = Port_Setting("coop_mi_chara", 1); return c >= 0 && c < 512 ? c : 1; }
 void PortRpg_SetMyChara(int chara) { Port_SettingSave("coop_mi_chara", chara); Port_SettingsWrite(); }
-void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
+int PortRpg_MyLevel(void);
+void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; sPickedLevel = sUsingMine ? PortRpg_MyLevel() : 0; if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
 int PortRpg_UsingMine(void) { return sUsingMine; }
 void Port_TraceLine(const char *s) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s\n", s); fflush(stderr); } }
 void Port_TraceInt(const char *s, int v) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s %d\n", s, v); fflush(stderr); } }
@@ -290,7 +292,7 @@ int PortRpg_LevelOfXp(int xp) {
 }
 int PortRpg_MyLevel(void) { return PortRpg_LevelOfXp(PortRpg_Xp()); }
 /* the level the battle uses for my pick: my own fighter's, or 0 (the original) */
-int PortRpg_PickLevel(void) { return sUsingMine ? PortRpg_MyLevel() : 0; }
+int PortRpg_PickLevel(void) { return sUsingMine ? sPickedLevel : 0; }
 /* the experience inside the current level, in thousandths of what the next one needs (for a bar) */
 int PortRpg_LevelMille(void) {
     int xp = PortRpg_Xp(), level = 1;
