@@ -250,6 +250,14 @@ s32 CoopRevive_Guide(s32 from, f32 *dist, f32 *bearing) {
     return 1;
 }
 s32 CoopRevive_Range(void) { return (s32)REVIVE_RANGE; }
+/* The furthest revive under way, in thousandths (a whole number: a float returned to the port's code arrives wrong). */
+s32 CoopRevive_ProgressMille(void) {
+    s32 d, best = 0;
+
+    for (d = 0; d < 10; d++) if (sRevProgress[d] > best) best = sRevProgress[d];
+    best = sRevOn ? best * 1000 / REVIVE_TICKS : 0;
+    return best > 1000 ? 1000 : best;
+}
 
 s32 CoopRevive_AnyDown(void) {
     s32 d;
