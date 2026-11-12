@@ -2226,6 +2226,7 @@ static void Tb_DrawCoopResultText(void){
         fill=x0+(x1-x0)*PortCoop_Result(TBR_MILLE)/1000.0f;
         Ps_Rect(x0,294,x1,299,Ps_Rgba(23,50,60,0x80),Ps_Rgba(23,50,60,0x80));
         Ps_Rect(x0,294,fill,299,Ps_Rgba(255,213,91,0x80),Ps_Rgba(255,190,60,0x80));
+        {extern const char *PortRpg_XpText(void);Ps_Align(2);Ps_TextRaw(x1,280,(char*)PortRpg_XpText(),.38f,140,3);Ps_Align(0);}
     }else Ps_TextRaw(x0,274,"Con la casilla normal no se gana EXP: elige la de MI PERSONAJE.",.40f,x1-x0,4);
     Ps_Align(1);Ps_TextRaw(cx,310,"X: continuar",.42f,200,0);Ps_Align(0);
 }

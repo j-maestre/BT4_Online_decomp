@@ -342,6 +342,15 @@ int PortRpg_MyLevel(void) { return PortRpg_LevelOfXp(PortRpg_Xp()); }
 /* the level the battle uses for my pick: my own fighter's, or 0 (the original) */
 int PortRpg_PickLevel(void) { return sUsingMine ? sPickedLevel : 0; }
 /* the experience inside the current level, in thousandths of what the next one needs (for a bar) */
+/* The experience inside the current level and what the next one needs, as "400 / 1500 EXP" ("Nivel máximo" at 100). */
+const char *PortRpg_XpText(void) {
+    static char buf[48];
+    int xp = PortRpg_Xp(), level = 1;
+    while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }
+    if (level >= RPG_MAX_LEVEL) snprintf(buf, sizeof(buf), "Nivel máximo");
+    else snprintf(buf, sizeof(buf), "%d / %d EXP", xp, rpg_need(level));
+    return buf;
+}
 int PortRpg_LevelMille(void) {
     int xp = PortRpg_Xp(), level = 1;
     while (level < RPG_MAX_LEVEL && xp >= rpg_need(level)) { xp -= rpg_need(level); level++; }

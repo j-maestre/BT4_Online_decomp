@@ -542,6 +542,8 @@ static void Co_Draw(void) {
             {   f32 x0 = 74.0f + slide, x1 = 366.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
                 Ps_Rect(x0, 307.0f, x1, 311.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
                 Ps_Rect(x0, 307.0f, fill, 311.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+                {   extern const char *PortRpg_XpText(void);
+                    Ps_Text(x1 + 8.0f, Ps_TextTop(309.0f, 0.36f), (char *)PortRpg_XpText(), 0.36f, 110.0f, 3); }
             }
         }
         {   s32 k, won = 0, top = 0;
@@ -692,6 +694,8 @@ static void Co_Draw(void) {
         {   f32 x0 = 64.0f + slide, x1 = 396.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
             Ps_Rect(x0, 274.0f, x1, 279.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
             Ps_Rect(x0, 274.0f, fill, 279.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+            {   extern const char *PortRpg_XpText(void);
+                Ps_Text(x1 + 8.0f, Ps_TextTop(276.5f, 0.36f), (char *)PortRpg_XpText(), 0.36f, 110.0f, 3); }
         }
         if (sCo->cur == 2) {
             s32 t, n = PortRpg_TitleCount(), got = 0;
