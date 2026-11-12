@@ -29,7 +29,8 @@
 typedef struct PortCoopFoe { int chara, costume, level, health, behind, transform; char name[40]; } PortCoopFoe;
 #define COOP_DIALOG 8      /* lines of a chapter's conversation */
 typedef struct PortCoopChapter {
-    char id[32], saga[48], title[64], pair[64], secret[48];
+    char id[32], saga[48], title[64], pair[64], secret[48], require[48];
+    int weekly;
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
     int foes, reserves, dialogs;
@@ -142,6 +143,8 @@ int PortCoop_Load(void) {
         field_str(L, "id", c->id, sizeof(c->id));
         field_str(L, "saga", c->saga, sizeof(c->saga));
         field_str(L, "secreto", c->secret, sizeof(c->secret));
+        field_str(L, "requiere", c->require, sizeof(c->require));
+        lua_getfield(L, -1, "semanal"); c->weekly = lua_toboolean(L, -1); lua_pop(L, 1);
         field_str(L, "titulo", c->title, sizeof(c->title));
         field_str(L, "pareja", c->pair, sizeof(c->pair));
         field_str(L, "intro", c->intro, sizeof(c->intro));
@@ -419,7 +422,12 @@ void PortRpg_TitleBought(int i) {
 }
 static int sPickedHab;
 int PortRpg_Abilities(void);
-static void rpg_pick_points(void) { int w; for (w = 0; w < 4; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; sPickedHab = sUsingMine ? PortRpg_Abilities() : 0; }
+static int obj_points(int w);
+static void rpg_pick_points(void) {
+    int w;
+    for (w = 0; w < 4; w++) { sPickedPts[w] = sUsingMine ? PortRpg_Points(w) + obj_points(w) : 0; if (sPickedPts[w] > 60) sPickedPts[w] = 60; }
+    sPickedHab = sUsingMine ? (PortRpg_Abilities() | (Port_Setting("coop_arbol", 0) & 0x1FF) << 2) : 0; /* (the shop's 2 bits, the tree's 9) */
+}
 
 static void grade_key(char *out, int cap, int i) { done_key(out, cap, i); memcpy(out, "coop_nota_", 10); }
 /* The best grade of chapter i: "" without one. */
@@ -440,7 +448,9 @@ int PortCoop_ChBestDiff(int i) {
 /* The last battle's results, for the results panel (src/menu/port_tbo.c): whole numbers by field. */
 enum { RES_VALID, RES_WON, RES_INFINITE, RES_WAVES, RES_GRADE, RES_SCORE, RES_SHARE, RES_REVIVES, RES_DOWNS, RES_ZP, RES_XP,
        RES_BEFORE, RES_AFTER, RES_MILLE, RES_DIFF, RES_MINE, RES_COUNT };
-static int sRes[RES_COUNT], sResCaps, sResTeam;
+static int sRes[RES_COUNT], sResCaps, sResTeam, sResTime, sResRecord;
+int PortCoop_ResultTime(void) { return sResTime; }
+int PortCoop_ResultRecord(void) { return sResRecord; }
 int PortCoop_ResultTeam(void) { return sResTeam; }
 /* For the HUD (port/src/gs/mods.c): the new level for six seconds after a battle that raised it; else 0. */
 static time_t sLevelUpAt;
@@ -553,6 +563,7 @@ int PortMis_DaysLeft(void) { return 7 - (int)((mis_day() + 3) % 7); }
 int PortItem_Count(int which) { return Port_Setting(which ? "coop_cap_zp" : "coop_cap_exp", 0); }
 /* Claims a mission done: 1 when it paid now (its Z points through src/menu/menu_p_b.c, into the save). */
 static void mis_streak_claimed(void);
+int PortObj_Give(void);
 int PortMis_StreakBonus(void);
 /* what the last mission claimed gave, for the co-op screen's notice */
 static char sClaimText[128];
@@ -570,6 +581,7 @@ int PortMis_Claim(int k) {
     if (cz) Port_SettingSave("coop_cap_zp", PortItem_Count(1) + cz);
     mis_streak_claimed();
     zp = zp * (100 + PortMis_StreakBonus()) / 100; /* (the daily streak) */
+    if (k == 4) PortObj_Give(); /* (the second weekly mission: an object) */
     Port_SettingsWrite();
     PortCoop_AddMoney(zp);
     {   int n = snprintf(sClaimText, sizeof(sClaimText), "¡Conseguido! +%d Puntos Z, +%d EXP", zp, xp);
@@ -704,14 +716,117 @@ int PortRpg_Abilities(void) { return Port_Setting("coop_habilidades", 0) & 3; }
 void PortRpg_AbilityBought(int bit) { Port_SettingSave("coop_habilidades", PortRpg_Abilities() | bit); Port_SettingsWrite(); }
 int PortRpg_PickAbilities(void) { return sUsingMine ? sPickedHab : 0; }
 
+/* ------------------------------------------------------------------------------------------------------------------
+ * Equipable objects (src/menu/port_coop.c, "Objetos"): won with the weekly missions, the weekly bosses and the
+ * "What if" routes; two equipped at a time; they add improvement points (taken with the cell, as the points).
+ * coop_obj (owned, a bit each), coop_eq1 / coop_eq2 (equipped: index + 1).
+ * ---------------------------------------------------------------------------------------------------------------- */
+static const struct { const char *name, *what; int pts[4]; } kObj[] = {
+    {"Peto saiyajin", "+8 de defensa", {0, 0, 8, 0}}, {"Banda de Goku", "+8 de Ki", {0, 0, 0, 8}},
+    {"Muñ" "equeras de peso", "+8 de ataque", {0, 8, 0, 0}}, {"Capa de Piccoro", "+8 de vida", {8, 0, 0, 0}},
+    {"Pendientes Potara", "+5 a todo", {5, 5, 5, 5}}, {"Radar del Dragón", "+20% Puntos Z al ganar", {0, 0, 0, 0}},
+    {"Bá" "culo mágico", "+12 de ataque", {0, 12, 0, 0}}, {"Armadura de Freezer", "+12 de defensa", {0, 0, 12, 0}}};
+#define OBJ_COUNT ((int)(sizeof(kObj) / sizeof(kObj[0])))
+int PortObj_Count(void) { return OBJ_COUNT; }
+const char *PortObj_Name(int i) { return i >= 0 && i < OBJ_COUNT ? kObj[i].name : ""; }
+const char *PortObj_What(int i) { return i >= 0 && i < OBJ_COUNT ? kObj[i].what : ""; }
+int PortObj_Owned(int i) { return i >= 0 && i < OBJ_COUNT && ((Port_Setting("coop_obj", 0) >> i) & 1); }
+int PortObj_Equipped(int i) { return i >= 0 && (Port_Setting("coop_eq1", 0) == i + 1 || Port_Setting("coop_eq2", 0) == i + 1); }
+/* equips or takes off object i (two at most: the first slot goes when both are full) */
+void PortObj_Toggle(int i) {
+    int a = Port_Setting("coop_eq1", 0), b = Port_Setting("coop_eq2", 0);
+    if (!PortObj_Owned(i)) return;
+    if (a == i + 1) Port_SettingSave("coop_eq1", 0);
+    else if (b == i + 1) Port_SettingSave("coop_eq2", 0);
+    else if (!a) Port_SettingSave("coop_eq1", i + 1);
+    else if (!b) Port_SettingSave("coop_eq2", i + 1);
+    else { Port_SettingSave("coop_eq1", b); Port_SettingSave("coop_eq2", i + 1); }
+    Port_SettingsWrite();
+}
+static int obj_points(int w) { int i, n = 0; for (i = 0; i < OBJ_COUNT; i++) if (PortObj_Equipped(i) && PortObj_Owned(i)) n += kObj[i].pts[w]; return n; }
+/* gives an object not yet owned (at random among them); its index, or -1 when all are owned */
+static int sObjGiven = -1;
+int PortObj_Give(void) {
+    int free[16], n = 0, i, pick;
+    for (i = 0; i < OBJ_COUNT; i++) if (!PortObj_Owned(i)) free[n++] = i;
+    if (!n) return -1;
+    pick = free[(unsigned)(time(NULL) ^ (Port_Setting("coop_mi_xp", 0) * 2654435761u)) % (unsigned)n];
+    Port_SettingSave("coop_obj", Port_Setting("coop_obj", 0) | (1 << pick));
+    Port_SettingsWrite();
+    sObjGiven = pick;
+    return pick;
+}
+int PortObj_TakeGiven(void) { int g = sObjGiven; sObjGiven = -1; return g; }
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * The skill tree (src/menu/port_coop.c, "Arbol de habilidades"): three branches of three, each needing the one
+ * before; a skill point every five levels; tier costs 1, 2, 3. coop_arbol (a bit each, branch * 3 + tier). Applied
+ * in battle (src/battle/coop_infinite.c) from the bits sent with the level ("#lv", the abilities: bits 2..10).
+ * ---------------------------------------------------------------------------------------------------------------- */
+static const struct { const char *name, *what; } kTree[9] = {
+    {"Piel de acero", "Recibes un 8% menos de daño."}, {"Aguante", "Empiezas con un 10% más de vida."},
+    {"Última resistencia", "Con menos del 25% de vida, recibes un 25% menos de daño."},
+    {"Furia", "Haces un 8% más de daño."}, {"Rompedefensas", "Un 15% más de daño a rivales con más de la mitad de vida."},
+    {"Golpe final", "Un 25% más de daño a rivales con menos del 25% de vida."},
+    {"Reanimador experto", "Revives a tu compañero un 30% más rápido."},
+    {"Aura de Ki", "Cada golpe tuyo da Ki a tu compañero."}, {"Vínculo", "El combo de equipo hace +40% en vez de +25%."}};
+const char *PortTree_Name(int b) { return b >= 0 && b < 9 ? kTree[b].name : ""; }
+const char *PortTree_What(int b) { return b >= 0 && b < 9 ? kTree[b].what : ""; }
+int PortTree_Has(int b) { return b >= 0 && b < 9 && ((Port_Setting("coop_arbol", 0) >> b) & 1); }
+int PortTree_Cost(int b) { return b % 3 + 1; }
+int PortTree_Points(void) { return PortRpg_MyLevel() / 5; }
+int PortTree_Free(void) { int b, n = PortTree_Points(); for (b = 0; b < 9; b++) if (PortTree_Has(b)) n -= PortTree_Cost(b); return n; }
+int PortTree_Buy(int b) {
+    if (b < 0 || b >= 9 || PortTree_Has(b) || (b % 3 && !PortTree_Has(b - 1)) || PortTree_Free() < PortTree_Cost(b)) return 0;
+    Port_SettingSave("coop_arbol", Port_Setting("coop_arbol", 0) | (1 << b));
+    Port_SettingsWrite();
+    return 1;
+}
+void PortTree_Reset(void) { Port_SettingSave("coop_arbol", 0); Port_SettingsWrite(); }
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Times and records: the best time of each chapter won (coop_tiem_<id>, seconds), and the last partner's grade and
+ * time for it, told in the room ("#rec:<id>:<grade>:<seconds>", port/src/gs/tag_team_net.c).
+ * ---------------------------------------------------------------------------------------------------------------- */
+static void tkey(char *out, int cap, int i, const char *pre) { done_key(out, cap, i); memcpy(out, pre, 10); }
+int PortCoop_ChBestTime(int i) { char k[64]; if (i < 0 || i >= sCount) return 0; tkey(k, sizeof(k), i, "coop_tiem_"); return Port_Setting(k, 0); }
+int PortCoop_ChRivalTime(int i) { char k[64]; if (i < 0 || i >= sCount) return 0; tkey(k, sizeof(k), i, "coop_rvti_"); return Port_Setting(k, 0); }
+int PortCoop_ChRivalGrade(int i) { char k[64]; if (i < 0 || i >= sCount) return 0; tkey(k, sizeof(k), i, "coop_rvgr_"); return Port_Setting(k, 0); }
+const char *PortCoop_GradeName(int g) { return g >= 1 && g <= 7 ? kGrades[g] : "-"; }
+const char *PortCoop_RivalName(void) { static char n[24]; Port_SettingText("coop_rv_nombre", "", n, sizeof(n)); return n; }
+/* the line this machine tells in the room for the chosen chapter, "" without one */
+const char *PortCoop_RecordLine(void) {
+    static char line[96];
+    char k[64];
+    line[0] = 0;
+    if (sSelected < 0) return line;
+    grade_key(k, sizeof(k), sSelected);
+    snprintf(line, sizeof(line), "%s:%d:%d", sCh[sSelected].id, Port_Setting(k, 0), PortCoop_ChBestTime(sSelected));
+    return line;
+}
+void PortCoop_RecordHeard(const char *who, const char *text) {
+    char id[40], k[64];
+    int g = 0, t = 0, i;
+    if (sscanf(text, "%39[^:]:%d:%d", id, &g, &t) < 3) return;
+    for (i = 0; i < sCount; i++)
+        if (!strcmp(sCh[i].id, id)) {
+            tkey(k, sizeof(k), i, "coop_rvgr_"); Port_SettingSave(k, g < 0 ? 0 : g > 7 ? 7 : g);
+            tkey(k, sizeof(k), i, "coop_rvti_"); Port_SettingSave(k, t < 0 ? 0 : t);
+            if (who && who[0]) Port_SettingTextSave("coop_rv_nombre", who);
+            Port_SettingsWrite();
+            return;
+        }
+}
+
 static void rpg_reward(int won) {
     extern int TagBattle_LocalActor(void), CoopLv_DamageShareMille(int), CoopLv_Revives(int), CoopLv_Downs(int);
     static const int zp[8] = {0, 500, 1000, 2000, 3000, 5000, 7500, 10000};
     int me = TagBattle_LocalActor();
     int share = CoopLv_DamageShareMille(me), revives = CoopLv_Revives(me), downs = CoopLv_Downs(me);
     int score, grade = 0, xp, before, after, n = 0;
-    char key[32];
+    char key[64];
 
+    sResTime = 0; sResRecord = 0;
     /* the score, 0..100: winning, the share of the damage, the partners revived, not falling */
     score = 40 + share * 40 / 1000 + revives * 8 + (downs == 0 ? 20 : downs == 1 ? 8 : 0);
     if (score > 100) score = 100;
@@ -719,6 +834,15 @@ static void rpg_reward(int won) {
         xp = 30 + sInfWaves * 25 + share * 30 / 1000 + revives * 10; /* (the endless mode: no difficulty) */
         sRewardZp = sInfWaves * 400;
     } else if (won) {
+        {   extern int CoopLv_Seconds(void);
+            int secs = CoopLv_Seconds(); /* (against the clock: a quick win scores more) */
+            score += secs <= 120 ? 15 : secs <= 180 ? 10 : secs <= 300 ? 5 : 0;
+            if (score > 100) score = 100;
+            sResTime = secs;
+            tkey(key, sizeof(key), sSelected, "coop_tiem_");
+            sResRecord = secs > 0 && (Port_Setting(key, 0) == 0 || secs < Port_Setting(key, 0));
+            if (sResRecord) Port_SettingSave(key, secs);
+        }
         grade = score >= 95 ? 7 : score >= 85 ? 6 : score >= 72 ? 5 : score >= 60 ? 4 : score >= 48 ? 3 : score >= 36 ? 2 : 1;
         xp = (50 + score + sSelected * 3) * kDiffXp[sDiff] / 100;
         sRewardZp = (zp[grade] + sSelected * 100) * kDiffZp[sDiff] / 100;
@@ -726,6 +850,12 @@ static void rpg_reward(int won) {
         if (grade > Port_Setting(key, 0)) Port_SettingSave(key, grade);
         memcpy(key, "coop_difi_", 10);
         if (sDiff + 1 > Port_Setting(key, 0)) Port_SettingSave(key, sDiff + 1);
+        if (sCh[sSelected].weekly) { sRewardZp *= 3; PortObj_Give(); } /* (the weekly boss: triple, and an object) */
+        if (sCh[sSelected].require[0]) { /* a route's first win: an object */
+            char rk[64]; tkey(rk, sizeof(rk), sSelected, "coop_robj_");
+            if (!Port_Setting(rk, 0)) { Port_SettingSave(rk, 1); PortObj_Give(); }
+        }
+        {   int o; for (o = 0; o < OBJ_COUNT; o++) if (o == 5 && PortObj_Equipped(o) && PortObj_Owned(o)) sRewardZp = sRewardZp * 120 / 100; } /* (the radar) */
     } else {
         xp = 20 + share * 30 / 1000 + revives * 8;
         sRewardZp = 0;
@@ -836,7 +966,22 @@ const char *PortCoop_ChDialogWho(int i, int k) { return ch(i) && k >= 0 && k < c
 const char *PortCoop_ChDialogText(int i, int k) { return ch(i) && k >= 0 && k < ch(i)->dialogs ? ch(i)->dlgText[k] : ""; }
 /* A chapter can be played once the one before it is won (the first always). */
 static int saga_perfect(const char *saga);
+static long mis_week(void);
+/* the weekly boss of this week: the (week % count)-th chapter marked "semanal" */
+int PortCoop_IsThisWeek(int i) {
+    int j, n = 0, k;
+    if (!ch(i) || !ch(i)->weekly) return 0;
+    for (j = 0; j < sCount; j++) n += sCh[j].weekly != 0;
+    k = (int)(mis_week() % n);
+    for (j = 0; j < sCount; j++) if (sCh[j].weekly && k-- == 0) return j == i;
+    return 0;
+}
+int PortCoop_ChWeekly(int i) { return ch(i) ? ch(i)->weekly : 0; }
+const char *PortCoop_ChRequire(int i) { return ch(i) ? ch(i)->require : ""; }
+static int saga_done(const char *saga) { int j, n = 0; for (j = 0; j < sCount; j++) if (!strcmp(sCh[j].saga, saga)) { if (!PortCoop_Done(j)) return 0; n++; } return n > 0; }
 int PortCoop_Unlocked(int i) {
+    if (ch(i) && ch(i)->weekly) return PortCoop_IsThisWeek(i);
+    if (ch(i) && ch(i)->require[0]) return PortCoop_Done(i) || saga_done(ch(i)->require);
     if (ch(i) && ch(i)->secret[0]) return PortCoop_Done(i) || saga_perfect(ch(i)->secret);
     return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1);
 }

@@ -324,6 +324,8 @@ static void TagCoop_AddMine(void){
         for(c=n-1;c>=0&&g[c].id==TS_EMPTY;--c)at=c;
         if(at<0){if(n>=TS_CELL_MAX)return;at=n++;gTeamSel->masterCount[t]=gTeamSel->cellCount[t]=n;gTeamSel->rows[t]=(n+TS_COLS-1)/TS_COLS;}
         g[at]=g[src];sCoopMineCell=at;
+        {extern int PortRpg_MyLevel(void);s32 allow=1+PortRpg_MyLevel()/20; /* (its forms open with the level: one more every 20) */
+         if(g[at].formCount>allow)g[at].formCount=allow;}
     }
     if(getenv("BT4_RENDER_TEST"))fprintf(stderr,"coop: my own fighter (chara %d) on cell %d\n",base,sCoopMineCell);
     if(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_MINE_TEST")&&sCoopMineCell>=0) /* (test: the cursor starts on it) */

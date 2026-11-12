@@ -158,12 +158,19 @@ static s32 sLvPts[10][4];    /* each player's improvement points: health, attack
 /* The team combo: both players striking the same rival within a second and a half: +25% damage while it lasts. */
 #define COMBO_TICKS 45
 static s32 sLvTick, sLvHitAt[10], sLvHitOn[10], sComboFlash, sCombos;
-static s32 sLvHab[10]; /* the ki abilities bought (port/src/coop_story.c): 1 a ki bar more at the start, 2 ki back with each hit */
+static s32 sLvHab[10]; /* the ki abilities bought (port/src/coop_story.c): 1 a ki bar more at the start, 2 ki back with each hit;
+                          bits 2..10 the skill tree (PortTree_*: 3 branches of 3) */
+#define TREE(a, b) ((sLvHab[a] >> (2 + (b))) & 1)
+/* The team ultimate: both players holding L2 + R2 at once, close and with 3 ki bars each: every rival loses 15% of
+   its health (never the last point) and both spend the ki; then a pause. */
+#define ULT_KI 60000
+#define ULT_RANGE 300.0f
+static s32 sUltFlash, sUltWait;
 /* The level rewards of "Mi personaje" (port/src/coop_story.c lists them): level 10 revives a partner in two seconds,
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
 static s32 Rev_Lv(s32 a) { return sLvOn && a >= 0 && a < 10 ? sLvLevel[a] : 0; }
-static s32 Rev_Ticks(s32 h) { return Rev_Lv(h) >= 10 ? 60 : REVIVE_TICKS; }
+static s32 Rev_Ticks(s32 h) { s32 t = Rev_Lv(h) >= 10 ? 60 : REVIVE_TICKS; return sLvOn && h >= 0 && h < 10 && ((sLvHab[h] >> 8) & 1) ? t * 70 / 100 : t; }
 static f32 Rev_Range(s32 h) { return Rev_Lv(h) >= 80 ? REVIVE_RANGE * 1.5f : REVIVE_RANGE; }
 static s32 Rev_WarpTicks(s32 h) { return Rev_Lv(h) >= 40 ? 15 : REVIVE_WARP_TICKS; }
 static f32 Rev_Health(s32 d) { return Rev_Lv(d) >= 25 ? 60.0f : REVIVE_HEALTH; }
@@ -190,6 +197,31 @@ void CoopRevive_Update(void) {
     if (sBossFlash > 0) sBossFlash--;
     if (sComboFlash > 0) sComboFlash--;
     sLvTick++;
+    if (sUltFlash > 0) sUltFlash--;
+    if (sUltWait > 0) sUltWait--;
+    if (sLvOn && !sUltWait) { /* the team ultimate */
+        s32 a1 = -1, a2b = -1, k;
+        for (k = 0; k < TagBattle_Count() && k < 10; k++)
+            if (TagBattle_Team(k) == 0 && sLvLevel[k] > 0 && BtlCharApi_GetHp(k) > 0) { if (a1 < 0) a1 = k; else if (a2b < 0) a2b = k; }
+        if (a1 >= 0 && a2b >= 0) {
+            BtlMemberChr *c1 = BtlChar_Get(a1), *c2 = BtlChar_Get(a2b);
+            f32 dx = CoopRevive_Delta(a1, a2b, 0), dy = CoopRevive_Delta(a1, a2b, 1), dz = CoopRevive_Delta(a1, a2b, 2);
+            if (BtlInput_IsHeld(c1, 0x200) && BtlInput_IsHeld(c1, 0x1000) && BtlInput_IsHeld(c2, 0x200) && BtlInput_IsHeld(c2, 0x1000)
+                && BtlMember_HasKi(c1, ULT_KI) && BtlMember_HasKi(c2, ULT_KI) && dx * dx + dy * dy + dz * dz <= ULT_RANGE * ULT_RANGE) {
+                for (k = 0; k < TagBattle_Count() && k < 10; k++)
+                    if (TagBattle_Team(k) == 1 && BtlCharApi_GetHp(k) > 0) {
+                        BtlMemberChr *r = BtlChar_Get(k);
+                        BtlMemberGauge *g = BtlMember_GetGauge(r, r->active);
+                        s32 hit = g->healthMax * 15 / 100;
+                        g->health = g->health - hit > 1 ? g->health - hit : 1;
+                        sLvDealt[a1] += hit / 2; sLvDealt[a2b] += hit / 2; sLvRivalDamage += hit;
+                    }
+                BtlMember_SpendKi(c1, ULT_KI, 1); BtlMember_SpendKi(c2, ULT_KI, 1);
+                sUltFlash = 120; sUltWait = 30 * 20;
+                fprintf(stderr, "coop: team ultimate by %d and %d\n", a1, a2b);
+            }
+        }
+    }
     if (sLvTick == 2 && sLvOn) { /* (ability: a ki bar more at the start) */
         s32 a2;
         for (a2 = 0; a2 < TagBattle_Count() && a2 < 10; a2++) if (sLvHab[a2] & 1) BtlMember_AddKi(BtlChar_Get(a2), 20000);
@@ -336,6 +368,7 @@ void CoopLv_Configure(s32 on) {
     sLvFoePct = 100;
     memset(sLvPts, 0, sizeof(sLvPts));
     memset(sLvHab, 0, sizeof(sLvHab));
+    sUltFlash = 0; sUltWait = 0;
     memset(sLvHitAt, 0, sizeof(sLvHitAt)); memset(sLvHitOn, 0, sizeof(sLvHitOn)); sLvTick = 0; sComboFlash = 0; sCombos = 0;
     memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
@@ -351,7 +384,12 @@ void CoopLv_SetPoints(s32 actor, s32 hp, s32 atk, s32 def, s32 ki) {
     if (actor < 0 || actor >= 10) return;
     sLvPts[actor][0] = hp; sLvPts[actor][1] = atk; sLvPts[actor][2] = def; sLvPts[actor][3] = ki;
 }
-void CoopLv_SetAbilities(s32 actor, s32 bits) { if (actor >= 0 && actor < 10) sLvHab[actor] = bits & 3; }
+void CoopLv_SetAbilities(s32 actor, s32 bits) { if (actor >= 0 && actor < 10) sLvHab[actor] = bits & 0x7FF; }
+s32 CoopLv_HasTree(s32 actor, s32 b) { return actor >= 0 && actor < 10 && sLvOn ? TREE(actor, b) : 0; }
+/* the battle's time so far, in seconds (30 steps a second): the records and the time bonus (port/src/coop_story.c) */
+s32 CoopLv_Seconds(void) { return sLvTick / 30; }
+s32 CoopLv_UltFlash(void) { return sUltFlash; }
+s32 CoopLv_UltReady(void); /* (below) */
 /* The ki an action costs this fighter (src/battle/btl_char_member.c, BtlMember_HasKi / SpendKi): 0.5% less a ki point. */
 s32 CoopLv_KiCost(BtlMemberChr *chr, s32 amount) {
     s32 a = chr != NULL ? chr->side : -1;
@@ -366,6 +404,14 @@ s32 CoopBoss_Flash(void) { return sBossFlash; }
 /* For the HUD: steps left of the team combo notice; the combos of this battle. */
 s32 CoopLv_ComboFlash(void) { return sComboFlash; }
 s32 CoopLv_Combos(void) { return sCombos; }
+/* both players could use the team ultimate now (3 ki bars each, no pause): the HUD's hint */
+s32 CoopLv_UltReady(void) {
+    s32 k, n = 0;
+    if (!sLvOn || sUltWait) return 0;
+    for (k = 0; k < TagBattle_Count() && k < 10; k++)
+        if (TagBattle_Team(k) == 0 && sLvLevel[k] > 0 && BtlCharApi_GetHp(k) > 0) { if (!BtlMember_HasKi(BtlChar_Get(k), ULT_KI)) return 0; n++; }
+    return n >= 2;
+}
 void CoopLv_SetFoeDamage(s32 pct) { sLvFoePct = pct < 50 ? 50 : pct > 300 ? 300 : pct; }
 s32 CoopLv_Level(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvLevel[actor] : 0; }
 /* who strikes, around one hit (src/battle/btl_char_hit.c, btl_char_coll_b.c): set and cleared within the same call */
@@ -380,12 +426,21 @@ s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
         if (sLvLevel[a] > 0) amount = amount * CoopLv_AttackPct(sLvLevel[a]) / 100;
         if (sLvPts[a][1] > 0) amount = amount * (200 + sLvPts[a][1]) / 200; /* (attack points) */
         if ((sLvHab[a] & 2) && TagBattle_Team(v) == 1) BtlMember_AddKi(BtlChar_Get(a), amount / 2); /* (ability: ki back with each hit) */
+        if (TagBattle_Team(a) == 0 && TagBattle_Team(v) == 1) { /* the attacker's skill tree */
+            BtlMemberGauge *vg = BtlMember_GetGauge(chr, chr->active);
+            s32 pct = vg->healthMax > 0 ? vg->health * 100 / vg->healthMax : 100, b;
+            if (TREE(a, 3)) amount = amount * 108 / 100;
+            if (TREE(a, 4) && pct > 50) amount = amount * 115 / 100;
+            if (TREE(a, 5) && pct < 25) amount = amount * 125 / 100;
+            if (TREE(a, 7)) for (b = 0; b < 10 && b < TagBattle_Count(); b++) /* (Aura de Ki: the partner gets ki) */
+                if (b != a && TagBattle_Team(b) == 0) BtlMember_AddKi(BtlChar_Get(b), amount / 4);
+        }
         if (TagBattle_Team(a) == 0 && TagBattle_Team(v) == 1) { /* the team combo */
             s32 b;
             sLvHitAt[a] = sLvTick + 1; sLvHitOn[a] = v;
             for (b = 0; b < 10; b++)
                 if (b != a && sLvHitAt[b] > 0 && sLvHitOn[b] == v && sLvTick + 1 - sLvHitAt[b] <= COMBO_TICKS && TagBattle_Team(b) == 0) {
-                    amount = amount * 125 / 100;
+                    amount = amount * ((TREE(a, 8) || TREE(b, 8)) ? 140 : 125) / 100; /* (Vinculo: +40%) */
                     if (sComboFlash <= 0) sCombos++;
                     sComboFlash = 50;
                     break;
@@ -397,6 +452,11 @@ s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
     if (sLvLevel[v] > 0) amount = amount * CoopLv_TakenPct(sLvLevel[v]) / 100;
     if (sLvLevel[v] >= 60) amount = amount * 90 / 100; /* (the level 60 reward) */
     if (sLvPts[v][2] > 0) amount = amount * 200 / (200 + sLvPts[v][2]); /* (defence points) */
+    if (TagBattle_Team(v) == 0 && sLvOn) { /* the victim's skill tree */
+        BtlMemberGauge *g2 = BtlMember_GetGauge(chr, chr->active);
+        if (TREE(v, 0)) amount = amount * 92 / 100;
+        if (TREE(v, 2) && g2->healthMax > 0 && g2->health * 4 < g2->healthMax) amount = amount * 75 / 100;
+    }
     if (TagBattle_Team(v) == 1 && chr->active >= 0 && chr->active < 6 && sBossPct[v][chr->active] > 0
         && chr->active + 1 < chr->memberCount) { /* a boss that transforms */
         s32 m = chr->active, hp = BtlMember_GetGauge(chr, m)->health;

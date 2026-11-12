@@ -903,6 +903,15 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
             unsigned a = f > 15 ? 0xFFu : (unsigned)(f * 255 / 15);
             coop_text(cx, MODS_HUD_H * 0.16f, "\xC2\xA1COMBO DE EQUIPO!  +25%", 0x6EFF8C00u | a, 16);
         }
+        {   extern int CoopLv_UltFlash(void), CoopLv_UltReady(void);
+            int uf = CoopLv_UltFlash();
+            if (uf > 0) {
+                unsigned a = uf > 20 ? 0xFFu : (unsigned)(uf * 255 / 20);
+                coop_fill(cx - 210, MODS_HUD_H * 0.32f - 8, 420, 44, 0x00000000u | (a * 0xC0 / 255), 10);
+                coop_text(cx, MODS_HUD_H * 0.32f, "\xC2\xA1ATAQUE DEFINITIVO DE EQUIPO!", 0xFFB450u << 8 | a, 24);
+            } else if (CoopLv_UltReady())
+                coop_text(cx, MODS_HUD_H - 62, "L2 + R2 los dos a la vez y juntos: ataque de equipo", 0xFFD55BE0u, 10);
+        }
         if (lv > 0) { /* the battle just raised "Mi personaje" */
             char up[48];
             snprintf(up, sizeof(up), "\xC2\xA1SUBES DE NIVEL!  Nv %d", lv);

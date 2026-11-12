@@ -27,6 +27,8 @@
 --   intro      el texto que se lee antes de crear la sala
 --   cierre     el texto al ganar (cabe en unas 3 líneas)
 --   derrota    el texto al perder (opcional)
+--   requiere   (opcional) ruta alternativa: se abre al completar todos los capítulos de esa saga
+--   semanal    (opcional) true: jefe semanal; cada semana se abre uno de ellos (el mismo para todos)
 --   secreto    (opcional) capítulo secreto: se abre al sacar nota S o Z en todos los capítulos de esa saga
 --   dialogo    (opcional) la conversación antes del combate, línea a línea: { {"Quién", "Qué dice"}, ... }
 --              (hasta 8 líneas)
@@ -952,6 +954,216 @@ return {
         intro = "Capítulo secreto. Jiren y Toppo como dios de la destrucción, con toda su vida. El reto final.",
         cierre = "Habéis derrotado a lo más fuerte del Universo 11. No hay nada por encima.",
         derrota = "Jiren se da la vuelta sin decir nada.",
+    },
+    -- ------------------------------------------------------------------ Saga ¿Y si...? (rutas alternativas)
+    -- Cada uno se abre al completar su saga («requiere»).
+    {
+        id = "w1_vegeta",
+        saga = "Saga ¿Y si...?",
+        requiere = "Saga Saiyajin",
+        titulo = "¿Y si Vegeta no hubiera cambiado?",
+        pareja = "Goku (Med) y Piccoro (Fin)",
+        dialogo = {
+            { "Vegeta", "Nunca me uní a vosotros. Namek será mía, y después la Tierra." },
+            { "Goku", "Vegeta... pensaba que habías cambiado." },
+            { "Zarbon", "El príncipe y yo trabajamos juntos ahora. Qué sorpresa, ¿verdad?" },
+        },
+        rivales = {
+            { personaje = 31, nivel = 4, vida = 260, nombre = "Vegeta" },
+            { personaje = 82, nivel = 3, vida = 180, transforma = 40, nombre = "Zarbon" },
+        },
+        refuerzos = {
+            { personaje = 83, nivel = 3, vida = 220, nombre = "Zarbon (Transformado)", detras = 2 },
+            { personaje = 84, nivel = 3, vida = 180, nombre = "Dodoria", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Ruta alternativa. Vegeta nunca se unió a los guerreros Z y se ha aliado con los esbirros de Freezer.",
+        cierre = "Vegeta cae de rodillas. Quizá algún día cambie de verdad.",
+        derrota = "Vegeta: «Os lo dije: soy el príncipe de los saiyajin».",
+    },
+    {
+        id = "w2_freezer",
+        saga = "Saga ¿Y si...?",
+        requiere = "Saga Freezer",
+        titulo = "¿Y si Freezer hubiera ganado en Namek?",
+        pareja = "Gohan (Joven) y Krilin",
+        dialogo = {
+            { "Freezer", "Goku ya no está. Ahora el universo entero me obedece." },
+            { "Krilin", "Sin Goku... nos toca a nosotros, Gohan." },
+            { "Gohan", "¡Por mi padre!" },
+        },
+        rivales = {
+            { personaje = 95, nivel = 4, vida = 320, nombre = "Freezer (100% de poder)" },
+            { personaje = 86, nivel = 3, vida = 200, nombre = "Capitán Ginyu" },
+        },
+        refuerzos = {
+            { personaje = 97, nivel = 3, vida = 220, nombre = "King Cold", detras = 2 },
+            { personaje = 96, nivel = 4, vida = 260, nombre = "Mecha Freezer", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Ruta alternativa. Goku perdió en Namek y Freezer gobierna. Los que quedan intentan recuperar la Tierra.",
+        cierre = "El imperio de Freezer se derrumba. La Tierra vuelve a ser libre.",
+        derrota = "Freezer: «Sin Goku no sois nada».",
+    },
+    {
+        id = "w3_cell",
+        saga = "Saga ¿Y si...?",
+        requiere = "Saga Cell",
+        titulo = "¿Y si Cell hubiera absorbido a todos?",
+        pareja = "Gohan Definitivo y Vegetto",
+        dialogo = {
+            { "Cell", "Gohan, Vegeta, Piccoro... todos forman parte de mí ahora." },
+            { "Vegetto", "Pues entonces te sacaremos uno por uno." },
+        },
+        rivales = {
+            { personaje = 107, nivel = 4, vida = 400, nombre = "Cell (con todos absorbidos)" },
+        },
+        refuerzos = {
+            { personaje = 108, nivel = 4, vida = 300, nombre = "Cell Max", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Ruta alternativa. Cell absorbió a todos los guerreros y ahora es imparable. Cuando caiga, despierta su forma gigante.",
+        cierre = "Cell se desintegra y libera a todos. Ha sido por los pelos.",
+        derrota = "Cell: «Ahora sí soy perfecto».",
+    },
+    {
+        id = "w4_bu",
+        saga = "Saga ¿Y si...?",
+        requiere = "Saga de Bu",
+        titulo = "¿Y si Bu hubiera ganado?",
+        pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Bu", "(La Tierra entera es de caramelo. Bu se ríe.)" },
+            { "Vegeta", "Somos los últimos, Kakarotto." },
+            { "Goku", "Entonces no podemos fallar." },
+        },
+        rivales = {
+            { personaje = 117, nivel = 4, vida = 360, nombre = "Bu (Forma pura)" },
+            { personaje = 114, nivel = 4, vida = 240, nombre = "Súper Bu" },
+        },
+        refuerzos = {
+            { personaje = 116, nivel = 4, vida = 260, nombre = "Súper Bu (Gohan absorbido)", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Ruta alternativa. Bu ganó y solo quedáis vosotros dos. Es la última esperanza.",
+        cierre = "Bu desaparece. La Tierra empieza de nuevo.",
+        derrota = "Bu: «¡Bu gana! ¡Bu gana!».",
+    },
+    -- ------------------------------------------------------------------ Jefe semanal
+    -- Uno distinto cada semana (el mismo para todos), elegido por la fecha entre los marcados «semanal».
+    {
+        id = "k1_broly",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "Broly sin límites",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Broly", "¡Kakarottooo!" },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 190, nivel = 4, vida = 400, nombre = "Broly (Legendario)" },
+            { personaje = 189, nivel = 4, vida = 260, nombre = "Broly (SS)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    {
+        id = "k2_janemba",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "El demonio del caos",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Janemba", "(Las puertas del Más Allá se abren a su alrededor.)" },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 138, nivel = 4, vida = 400, nombre = "Súper Janemba" },
+            { personaje = 137, nivel = 4, vida = 240, nombre = "Janemba" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    {
+        id = "k3_omega",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "El dragón definitivo",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Omega Shenron", "Las siete bolas son mías. Y vuestro planeta también." },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 147, nivel = 4, vida = 400, nombre = "Omega Shenron" },
+            { personaje = 145, nivel = 4, vida = 220, nombre = "Neo Shenron" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    {
+        id = "k4_zamas",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "La fusión divina",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Zamas", "Los mortales sois un error. Yo soy la justicia." },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 76, nivel = 4, vida = 400, nombre = "Zamas (Fusión)" },
+            { personaje = 34, nivel = 4, vida = 240, nombre = "Black Goku (Rosé)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    {
+        id = "k5_kefla",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "La saiyajin fusionada",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Kefla", "¡Os voy a enseñar lo que es la fuerza de verdad!" },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 154, nivel = 4, vida = 400, nombre = "Kefla (SS)" },
+            { personaje = 199, nivel = 4, vida = 240, nombre = "Kale (SS)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    {
+        id = "k6_cooler",
+        saga = "Jefe semanal",
+        semanal = true,
+        titulo = "El regreso de Cooler",
+        pareja = "Los que queráis",
+        dialogo = {
+            { "Cooler", "Esta vez no habrá nadie que os salve." },
+            { "Goku", "¡Es el jefe de la semana! Cuanto antes, mejor nota." },
+        },
+        rivales = {
+            { personaje = 127, nivel = 4, vida = 400, nombre = "Cooler (Forma final)" },
+            { personaje = 128, nivel = 4, vida = 220, nombre = "Metal Cooler" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
+        cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
+        derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
     },
 }
 

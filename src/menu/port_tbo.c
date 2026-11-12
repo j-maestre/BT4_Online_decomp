@@ -2228,6 +2228,13 @@ static void Tb_DrawCoopResultText(void){
         Ps_Rect(x0,294,fill,299,Ps_Rgba(255,213,91,0x80),Ps_Rgba(255,190,60,0x80));
         {extern const char *PortRpg_XpText(void);Ps_Align(2);Ps_TextRaw(x1,280,(char*)PortRpg_XpText(),.38f,140,3);Ps_Align(0);}
     }else Ps_TextRaw(x0,274,"Con la casilla normal no se gana EXP: elige la de MI PERSONAJE.",.40f,x1-x0,4);
+    {extern int PortCoop_ResultTime(void),PortCoop_ResultRecord(void),PortObj_TakeGiven(void);extern const char *PortObj_Name(int);
+     static s32 shownObj=-1;s32 o;
+     if(PortCoop_ResultTime()>0){sprintf(line,"Tiempo %d:%02d%s",PortCoop_ResultTime()/60,PortCoop_ResultTime()%60,PortCoop_ResultRecord()?"  \302\241R\303\251cord!":"");
+        Ps_Align(2);Ps_TextRaw(x1,122,line,.44f,160,PortCoop_ResultRecord()?1:3);Ps_Align(0);}
+     o=PortObj_TakeGiven();if(o>=0)shownObj=o;
+     if(shownObj>=0){sprintf(line,"\302\241Objeto conseguido: %.40s!",PortObj_Name(shownObj));Ps_TextRaw(x0,140,line,.40f,(x1-x0)/2,1);}
+     if(!PortCoop_Result(TBR_VALID))shownObj=-1;}
     Ps_Align(1);Ps_TextRaw(cx,310,"X: continuar",.42f,200,0);Ps_Align(0);
 }
 static void Tb_DrawTagRoom(void){

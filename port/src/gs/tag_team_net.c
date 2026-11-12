@@ -500,6 +500,7 @@ static void me_send(void){ /* my card, every few seconds while in a co-op room *
     snprintf(line,sizeof(line),"#me:%d:%d:%d:",PortRpg_MyLevel(),PortRpg_Title(),PortStat(6));
     for(i=0;PortRpg_Name()[i]&&i<16;++i){char c=PortRpg_Name()[i];if(c==':'||c<32||c>126)c=' ';line[strlen(line)+1]=0;line[strlen(line)]=c;}
     Port_TagChatSend(line);me_sent_at=SDL_GetTicks();
+    {extern const char *PortCoop_RecordLine(void);if(PortCoop_RecordLine()[0]){snprintf(line,sizeof(line),"#rec:%s",PortCoop_RecordLine());Port_TagChatSend(line);}}
     i=Tt_Seat(&state,member);me_known[i]=1;me_level[i]=PortRpg_MyLevel();me_title[i]=PortRpg_Title();me_grade[i]=PortStat(6);snprintf(me_name[i],20,"%s",PortRpg_Name());
 }
 void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=lv_chara[i]=-1;me_sent_at=0;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
@@ -913,8 +914,11 @@ void Port_TagPoll(void){
             if(!strncmp(text,"#coop:",6)){extern void PortCoop_Announced(const char*);PortCoop_Announced(text+6);continue;} /* Historia cooperativa: the host's chapter */
             if(!strncmp(text,"#lv:",4)){int c=-1,l=0,p0=0,p1=0,p2=0,p3=0,hb=0; /* Historia cooperativa: the sender's level (points, abilities) for its fighter */
                 if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d:%d:%d:%d:%d:%d",&c,&l,&p0,&p1,&p2,&p3,&hb)>=2&&c>=0&&c<512&&l>=0&&l<=100){
-                    lv_hab[seat]=hb&3;
+                    lv_hab[seat]=hb&0x7FF;
                     lv_chara[seat]=c;lv_level[seat]=l;lv_pts[seat][0]=p0<0?0:p0>40?40:p0;lv_pts[seat][1]=p1<0?0:p1>40?40:p1;lv_pts[seat][2]=p2<0?0:p2>40?40:p2;lv_pts[seat][3]=p3<0?0:p3>40?40:p3;}
+                continue;}
+            if(!strncmp(text,"#rec:",5)){extern void PortCoop_RecordHeard(const char*,const char*); /* the sender's record of the chapter */
+                if(seat>=0&&seat!=Tt_Seat(&state,member))PortCoop_RecordHeard(state.players[seat].name,text+5);
                 continue;}
             if(!strncmp(text,"#me:",4)){int l=0,t=0,g=0,n=0; /* the sender's card */
                 if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d:%d:%n",&l,&t,&g,&n)>=3&&n>0){

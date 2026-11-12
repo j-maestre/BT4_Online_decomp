@@ -274,7 +274,8 @@ s32 TagBattle_ConfigureLocal(void) {
             if(lv>0){extern int Port_TagSeatPoints(int,int);extern void CoopLv_SetPoints(s32,s32,s32,s32,s32);
                 s32 p0=Port_TagSeatPoints(i,0),p1=Port_TagSeatPoints(i,1),p2=Port_TagSeatPoints(i,2),p3=Port_TagSeatPoints(i,3);
                 CoopLv_SetPoints(i,p0,p1,p2,p3); /* (the improvement points) */
-                {extern int Port_TagSeatAbilities(int);extern void CoopLv_SetAbilities(s32,s32);CoopLv_SetAbilities(i,Port_TagSeatAbilities(i));}
+                {extern int Port_TagSeatAbilities(int);extern void CoopLv_SetAbilities(s32,s32);CoopLv_SetAbilities(i,Port_TagSeatAbilities(i));
+                 if((Port_TagSeatAbilities(i)>>3)&1)health*=1.10f;} /* (tree: Aguante, +10% health) */
                 health=health*(f32)CoopLv_HealthPct(lv)/100.0f*(f32)(200+p0)/200.0f;
                 fprintf(stderr,"coop: actor %d level %d points %d/%d/%d/%d health %d\n",i,lv,p0,p1,p2,p3,(int)health);}
         }
