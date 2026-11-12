@@ -154,7 +154,7 @@ static s32 sRevWarp[10];     /* how long a partner far away has held guard: a se
 static s32 sRevNeed[10];     /* how long this fallen player's revive takes (its helper's level reward) */
 static s32 sLvFoePct = 100;  /* the chapter's difficulty: the rivals' damage, % */
 static s32 sBossPct[10][6], sBossInit[10][6], sBossFlash; /* bosses that transform (CoopBoss_Set) */
-static s32 sLvPts[10][3];    /* each player's improvement points: health, attack, defence (+0.5% each) */
+static s32 sLvPts[10][4];    /* each player's improvement points: health, attack, defence, ki (0.5% each) */
 /* The team combo: both players striking the same rival within a second and a half: +25% damage while it lasts. */
 #define COMBO_TICKS 45
 static s32 sLvTick, sLvHitAt[10], sLvHitOn[10], sComboFlash, sCombos;
@@ -341,9 +341,15 @@ s32 CoopLv_Active(void) { return sLvOn && TagBattle_Active(); }
    with, the hit that takes it there finishes it, and its next form, the member behind, comes in at once. */
 /* A player's improvement points ("Mi personaje", port/src/coop_story.c): its health is raised where it is set up
    (src/battle/battle_work.c), its attack and defence here. */
-void CoopLv_SetPoints(s32 actor, s32 hp, s32 atk, s32 def) {
+void CoopLv_SetPoints(s32 actor, s32 hp, s32 atk, s32 def, s32 ki) {
     if (actor < 0 || actor >= 10) return;
-    sLvPts[actor][0] = hp; sLvPts[actor][1] = atk; sLvPts[actor][2] = def;
+    sLvPts[actor][0] = hp; sLvPts[actor][1] = atk; sLvPts[actor][2] = def; sLvPts[actor][3] = ki;
+}
+/* The ki an action costs this fighter (src/battle/btl_char_member.c, BtlMember_HasKi / SpendKi): 0.5% less a ki point. */
+s32 CoopLv_KiCost(BtlMemberChr *chr, s32 amount) {
+    s32 a = chr != NULL ? chr->side : -1;
+    if (!sLvOn || amount <= 0 || a < 0 || a >= 10 || sLvPts[a][3] <= 0) return amount;
+    return amount * (200 - sLvPts[a][3]) / 200;
 }
 void CoopBoss_Set(s32 actor, s32 member, s32 pct) {
     if (actor >= 0 && actor < 10 && member >= 0 && member < 6) sBossPct[actor][member] = pct;

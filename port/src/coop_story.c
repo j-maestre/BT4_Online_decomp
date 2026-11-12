@@ -358,6 +358,7 @@ int PortRpg_LevelMille(void) {
 }
 
 /* ------------------------------------------------------------------------------------------------------------------
+ * (The fourth kind of point, Ki: everything that spends ki spends 0.5% less a point, src/battle/btl_char_member.c.)
  * "Mi personaje": improvement points, its own name and a title (src/menu/port_coop.c shows them).
  * - A point for each level above 1, spread by the player over health, attack and defence (each point +0.5%, at
  *   most 40 in one); taken when the cell is picked and told to the partner with the level ("#lv"), as the level.
@@ -367,21 +368,21 @@ int PortRpg_LevelMille(void) {
 extern void Port_SettingText(const char *name, const char *def, char *out, int size);
 extern void Port_SettingTextSave(const char *name, const char *value);
 #define RPG_POINT_MAX 40
-static const char *const kPtKey[3] = {"coop_pt_vida", "coop_pt_ataque", "coop_pt_defensa"};
-static int sPickedPts[3];
-int PortRpg_Points(int w) { int v = w >= 0 && w < 3 ? Port_Setting(kPtKey[w], 0) : 0; return v < 0 ? 0 : v > RPG_POINT_MAX ? RPG_POINT_MAX : v; }
-int PortRpg_PointsFree(void) { return PortRpg_MyLevel() - 1 - PortRpg_Points(0) - PortRpg_Points(1) - PortRpg_Points(2); }
+static const char *const kPtKey[4] = {"coop_pt_vida", "coop_pt_ataque", "coop_pt_defensa", "coop_pt_ki"};
+static int sPickedPts[4];
+int PortRpg_Points(int w) { int v = w >= 0 && w < 4 ? Port_Setting(kPtKey[w], 0) : 0; return v < 0 ? 0 : v > RPG_POINT_MAX ? RPG_POINT_MAX : v; }
+int PortRpg_PointsFree(void) { return PortRpg_MyLevel() - 1 - PortRpg_Points(0) - PortRpg_Points(1) - PortRpg_Points(2) - PortRpg_Points(3); }
 int PortRpg_PointAdd(int w, int d) {
     int v;
-    if (w < 0 || w >= 3) return 0;
+    if (w < 0 || w >= 4) return 0;
     v = PortRpg_Points(w) + d;
     if (v < 0 || v > RPG_POINT_MAX || (d > 0 && PortRpg_PointsFree() < d)) return 0;
     Port_SettingSave(kPtKey[w], v);
     Port_SettingsWrite();
     return 1;
 }
-void PortRpg_PointsReset(void) { int w; for (w = 0; w < 3; w++) Port_SettingSave(kPtKey[w], 0); Port_SettingsWrite(); }
-int PortRpg_PickPoints(int w) { return sUsingMine && w >= 0 && w < 3 ? sPickedPts[w] : 0; }
+void PortRpg_PointsReset(void) { int w; for (w = 0; w < 4; w++) Port_SettingSave(kPtKey[w], 0); Port_SettingsWrite(); }
+int PortRpg_PickPoints(int w) { return sUsingMine && w >= 0 && w < 4 ? sPickedPts[w] : 0; }
 const char *PortRpg_Name(void) {
     static char name[24];
     Port_SettingText("coop_mi_nombre", "", name, sizeof(name));
@@ -411,7 +412,7 @@ void PortRpg_TitleBought(int i) {
     Port_SettingSave("coop_titulos_comprados", Port_Setting("coop_titulos_comprados", 0) | (1 << i));
     Port_SettingsWrite();
 }
-static void rpg_pick_points(void) { int w; for (w = 0; w < 3; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; }
+static void rpg_pick_points(void) { int w; for (w = 0; w < 4; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; }
 
 static void grade_key(char *out, int cap, int i) { done_key(out, cap, i); memcpy(out, "coop_nota_", 10); }
 /* The best grade of chapter i: "" without one. */

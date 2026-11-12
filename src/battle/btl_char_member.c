@@ -560,6 +560,9 @@ s32 BtlMember_AddKi(BtlMemberChr *chr, s32 amount) {
 
 /* Whether the active member has at least this much ki. */
 s32 BtlMember_HasKi(BtlMemberChr *chr, s32 amount) {
+#ifdef PORT
+    { extern s32 CoopLv_KiCost(BtlMemberChr *, s32); amount = CoopLv_KiCost(chr, amount); } /* (co-op: the ki points) */
+#endif
     if (BtlMember_GetActiveGauge(chr)->ki < amount) {
         return 0;
     }
@@ -574,6 +577,9 @@ s32 BtlMember_SpendKi(BtlMemberChr *chr, s32 amount, s32 force) {
     if (force == 0 && BtlChar_TestFlag(chr, 6)) {
         return 0;
     }
+#ifdef PORT
+    { extern s32 CoopLv_KiCost(BtlMemberChr *, s32); amount = CoopLv_KiCost(chr, amount); } /* (co-op: the ki points) */
+#endif
     g->ki -= amount;
     if (g->ki < 0) {
         g->ki = 0;

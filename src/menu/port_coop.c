@@ -229,9 +229,9 @@ static void Co_MissionsUpdate(void) { /* act: 0 the missions, 2 the shop, 1 the 
 
     Ps_Prompt(0, sCo->act == 1 ? "Volver" : sCo->act == 2 ? "Comprar" : "Reclamar");
     Ps_Prompt(2, "Volver");
-    if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT)) {
+    if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT | PADG_L1 | PADG_R1)) { /* the tabs */
         static const s32 next[3] = {2, 0, 1}, prev[3] = {1, 2, 0};
-        sCo->act = (pad->gamePressed & PADG_RIGHT) ? next[sCo->act % 3] : prev[sCo->act % 3];
+        sCo->act = (pad->gamePressed & (PADG_RIGHT | PADG_R1)) ? next[sCo->act % 3] : prev[sCo->act % 3];
         sCo->cur = 0; Co_ShopBuild(); Snd_PlaySe(1, 0);
     }
     if (sCo->act == 0) Ps_Move(&sCo->cur, 6);
@@ -371,12 +371,12 @@ static void Co_NameUpdate(void) { /* the keys: act = row * CO_KEY_COLS + column 
 static void Co_PointsUpdate(void) {
     Pad *pad = &gPad[0];
 
-    Ps_Prompt(0, sCo->act == 3 ? "Repartir de nuevo" : "Volver");
+    Ps_Prompt(0, sCo->act == 4 ? "Repartir de nuevo" : "Volver");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->act, 4);
-    if (sCo->act < 3 && (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT)))
+    Ps_Move(&sCo->act, 5);
+    if (sCo->act < 4 && (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT)))
         Snd_PlaySe(1, PortRpg_PointAdd(sCo->act, (pad->gameRepeat & PADG_RIGHT) ? 1 : -1) ? 0 : 2);
-    if ((pad->gamePressed & PADG_CROSS) && sCo->act == 3) { PortRpg_PointsReset(); Snd_PlaySe(1, 1); }
+    if ((pad->gamePressed & PADG_CROSS) && sCo->act == 4) { PortRpg_PointsReset(); Snd_PlaySe(1, 1); }
     else if (pad->gamePressed & (PADG_TRIANGLE | PADG_CROSS)) { Snd_PlaySe(1, 2); sCo->cur = 3; Co_SetPage(CO_ME); }
 }
 
@@ -510,6 +510,24 @@ static const char *Co_RewardsBox(void) {
     return text; /* (the box takes some 220 letters: the latest reward and the next only) */
 }
 
+/* The tabs of "Misiones y tienda": the missions, the shop, the statistics (act 0, 2, 1). */
+static void Co_Tabs(f32 slide) {
+    static const char *names[3] = {"Misiones", "Tienda", "Estad\303\255sticas"};
+    static const s32 acts[3] = {0, 2, 1};
+    s32 k;
+    for (k = 0; k < 3; k++) {
+        f32 x0 = 228.0f + slide + 88.0f * k;
+        s32 on = sCo->act == acts[k];
+        Ps_Pill(on ? TBO_KIT_SEL : TBO_KIT_BAR, x0, 22.0f, x0 + 82.0f, 46.0f, on ? 0x80 : 0x60);
+        Ps_Align(1);
+        Ps_Text(x0 + 41.0f, Ps_TextTop(34.0f, 0.44f), (char *)names[k], 0.44f, 78.0f, on ? 1 : 4);
+        Ps_Align(0);
+    }
+    Ps_Align(1);
+    Ps_Text(228.0f + slide + 132.0f, 48.0f, "<  izquierda / derecha  >", 0.32f, 260.0f, 4);
+    Ps_Align(0);
+}
+
 static void Co_Draw(void) {
     f32 slide = (1.0f - Co_In()) * -160.0f;
     s32 count = PortCoop_Count(), i;
@@ -582,7 +600,8 @@ static void Co_Draw(void) {
         box = "Elige qui\303\251n quieres ser. En la selecci\303\263n de personaje de la cooperativa saldr\303\241 una casilla m\303\241s, "
               "al final, con \303\251l: es tu personaje, con tu nivel. Su casilla normal sigue siendo el original.";
     } else if (sCo->page == CO_MISSIONS && sCo->act == 2) {
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Tienda", 1.3f, 300.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Tienda", 1.3f, 170.0f, 0x80);
+        Co_Tabs(slide);
         sprintf(line, "Tus Puntos Z: %d     C\303\241psulas: %d EXP, %d Z", PortCoop_Money(), PortItem_Count(0), PortItem_Count(1));
         Ps_Text(50.0f + slide, 66.0f, line, 0.5f, 410.0f, 1);
         if (sShopTitles == 0) Co_ShopBuild();
@@ -599,7 +618,8 @@ static void Co_Draw(void) {
         box = "X: comprar. Los Puntos Z son los de tu partida (los mismos del modo historia). Izquierda/derecha: misiones, estad\303\255sticas.";
     } else if (sCo->page == CO_MISSIONS && !sCo->act) {
         char head[80];
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.3f, 300.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.3f, 170.0f, 0x80);
+        Co_Tabs(slide);
         for (i = 0; i < 6; i++) {
             char value[40];
             f32 y = (i < 3 ? 92.0f : 216.0f) + 28.0f * (i % 3);
@@ -626,7 +646,9 @@ static void Co_Draw(void) {
         char mineName[48];
         PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
         sprintf(line, "Estad\303\255sticas de %.40s  (Nv %d)", mineName, PortRpg_MyLevel());
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), line, 1.1f, 400.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), "Estad\303\255sticas", 1.1f, 170.0f, 0x80);
+        Co_Tabs(slide);
+        Ps_Text(50.0f + slide, 52.0f, line + 14, 0.42f, 170.0f, 3); /* (who: "de <name> (Nv X)") */
         for (i = 0; i < 10; i++) {
             char value[40];
             s32 k = order[i];
@@ -686,8 +708,8 @@ static void Co_Draw(void) {
             if (i == 0) sprintf(value, "%.40s", cn);
             else if (i == 1) sprintf(value, "%.20s", PortRpg_Name()[0] ? PortRpg_Name() : "(sin nombre)");
             else if (i == 2) sprintf(value, "<  %.40s  >", PortRpg_TitleName(PortRpg_Title()));
-            else if (i == 3) sprintf(value, PortRpg_PointsFree() > 0 ? "\302\241%d puntos sin gastar!" : "Vida %d  Ataque %d  Defensa %d",
-                                     PortRpg_PointsFree() > 0 ? PortRpg_PointsFree() : PortRpg_Points(0), PortRpg_Points(1), PortRpg_Points(2));
+            else if (i == 3 && PortRpg_PointsFree() > 0) sprintf(value, "\302\241%d puntos sin gastar!", PortRpg_PointsFree());
+            else if (i == 3) sprintf(value, "V %d  A %d  D %d  Ki %d", PortRpg_Points(0), PortRpg_Points(1), PortRpg_Points(2), PortRpg_Points(3));
             else sprintf(value, "%d combates", PortStat(0));
             Co_Row(50.0f + slide, 410.0f + slide, 96.0f + 34.0f * i, (char *)rows[i], value, i == sCo->cur, i == 3 && PortRpg_PointsFree() > 0 ? 1 : 5);
         }
@@ -703,7 +725,7 @@ static void Co_Draw(void) {
             sprintf(line, "Izquierda/derecha: cambiar de t\303\255tulo (tienes %d de %d). Los dem\303\241s se ganan subiendo de nivel o en la tienda.", got, n);
             box = line;
         } else if (sCo->cur == 1) box = "El nombre de tu personaje: lo ver\303\241 tu compa\303\261ero en la sala y en el combate.";
-        else if (sCo->cur == 3) box = "Cada nivel da un punto. Rep\303\241rtelos entre vida, ataque y defensa (cada punto, +0,5%).";
+        else if (sCo->cur == 3) box = "Cada nivel da un punto. Rep\303\241rtelos entre vida, ataque, defensa y Ki (cada punto, un 0,5%).";
         else if (sCo->cur == 4) box = "Todo lo que has hecho en la cooperativa.";
         else box = Co_RewardsBox();
     } else if (sCo->page == CO_NAME) {
@@ -725,17 +747,18 @@ static void Co_Draw(void) {
             }
         box = "X: escribir. Cuadrado: borrar. Start u OK: guardar. Tri\303\241ngulo: cancelar. (Hasta 16 letras; _ es un espacio)";
     } else if (sCo->page == CO_POINTS) {
-        static const char *names[3] = {"Vida", "Ataque", "Defensa"};
+        static const char *names[4] = {"Vida", "Ataque", "Defensa", "Ki (gastas menos)"};
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Mejoras", 1.3f, 300.0f, 0x80);
         sprintf(line, "Puntos sin gastar: %d   (un punto por nivel; nivel %d)", PortRpg_PointsFree(), PortRpg_MyLevel());
         Ps_Text(50.0f + slide, 70.0f, line, 0.5f, 410.0f, PortRpg_PointsFree() > 0 ? 1 : 3);
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < 4; i++) {
             char value[48];
-            sprintf(value, "<  %d  >   +%d,%d%%", PortRpg_Points(i), PortRpg_Points(i) / 2, (PortRpg_Points(i) & 1) * 5);
-            Co_Row(50.0f + slide, 410.0f + slide, 104.0f + 36.0f * i, (char *)names[i], value, i == sCo->act, 5);
+            sprintf(value, "<  %d  >   %s%d,%d%%", PortRpg_Points(i), i == 3 ? "-" : "+", PortRpg_Points(i) / 2, (PortRpg_Points(i) & 1) * 5);
+            Co_Row(50.0f + slide, 410.0f + slide, 100.0f + 34.0f * i, (char *)names[i], value, i == sCo->act, 5);
         }
-        Co_Row(50.0f + slide, 410.0f + slide, 224.0f, "Repartir de nuevo", NULL, sCo->act == 3, 3);
-        box = "Izquierda/derecha: quitar o poner un punto (m\303\241ximo 40 en cada una). Se aplican en el siguiente combate con tu casilla.";
+        Co_Row(50.0f + slide, 410.0f + slide, 246.0f, "Repartir de nuevo", NULL, sCo->act == 4, 3);
+        box = sCo->act == 3 ? "Ki: cada punto hace que las t\303\251cnicas (y todo lo que gasta Ki) cuesten un 0,5% menos. M\303\241ximo 40: un 20% menos."
+            : "Izquierda/derecha: quitar o poner un punto (m\303\241ximo 40 en cada una). Se aplican en el siguiente combate con tu casilla.";
     } else if (sCo->page == CO_LIST) {
         s32 first = sSagaN > 0 ? sSagaFirst[sCoSaga] : 0, end = sSagaN > 0 ? first + sSagaLen[sCoSaga] : count;
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), sSagaN > 0 ? (char *)PortCoop_ChSaga(first) : "Historia cooperativa", 1.3f, 380.0f, 0x80);
