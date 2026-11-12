@@ -897,6 +897,19 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
                 k++;
             }
     }
+    {   extern int CoopLv_ComboFlash(void), PortCoop_LevelUpShow(void);
+        int f = CoopLv_ComboFlash(), lv = PortCoop_LevelUpShow();
+        if (f > 0) { /* both partners on the same rival */
+            unsigned a = f > 15 ? 0xFFu : (unsigned)(f * 255 / 15);
+            coop_text(cx, MODS_HUD_H * 0.16f, "\xC2\xA1COMBO DE EQUIPO!  +25%", 0x6EFF8C00u | a, 16);
+        }
+        if (lv > 0) { /* the battle just raised "Mi personaje" */
+            char up[48];
+            snprintf(up, sizeof(up), "\xC2\xA1NIVEL ARRIBA!  Nv %d", lv);
+            coop_fill(cx - 160, MODS_HUD_H * 0.40f - 8, 320, 46, 0x000000C0u, 10);
+            coop_text(cx, MODS_HUD_H * 0.40f, up, 0xFFD55BFFu, 26);
+        }
+    }
     {   extern int CoopBoss_Flash(void);
         int f = CoopBoss_Flash();
         if (f > 0) { /* a boss transforms */

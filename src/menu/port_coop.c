@@ -199,16 +199,48 @@ static void Co_PickOpen(void) {
 extern int PortMis_Goal(int k), PortMis_Progress(int k), PortMis_Claimed(int k), PortMis_Claim(int k);
 extern int PortMis_HoursLeft(void), PortMis_DaysLeft(void), PortItem_Count(int which), PortStat(int k);
 extern const char *PortMis_Text(int k), *PortMis_RewardText(int k), *PortStat_BestGrade(void);
-static void Co_MissionsUpdate(void) {
+/* The shop: capsules, experience and titles for the save's Z points. Items: 0 EXP capsule, 1 Z capsule, 2 an
+   experience pack, then the titles that are sold. */
+extern s32 PortCoop_Money(void), PortCoop_SpendMoney(s32 n);
+extern void PortRpg_TitleBought(int i), PortRpg_SetTitle(int i);
+extern int PortRpg_TitleCount(void), PortRpg_TitlePrice(int), PortRpg_TitleUnlocked(int);
+extern const char *PortRpg_TitleName(int);
+#define CO_SHOP_BASE 3
+static s32 sShopTitle[16], sShopTitles;
+static void Co_ShopBuild(void) {
+    s32 t;
+    sShopTitles = 0;
+    for (t = 0; t < PortRpg_TitleCount() && sShopTitles < 16; t++) if (PortRpg_TitlePrice(t) > 0) sShopTitle[sShopTitles++] = t;
+}
+static s32 Co_ShopCount(void) { return CO_SHOP_BASE + sShopTitles; }
+static s32 Co_ShopPrice(s32 i) { return i == 0 || i == 1 ? 4000 : i == 2 ? 6000 : PortRpg_TitlePrice(sShopTitle[i - CO_SHOP_BASE]); }
+static s32 Co_ShopOwned(s32 i) { return i >= CO_SHOP_BASE && PortRpg_TitleUnlocked(sShopTitle[i - CO_SHOP_BASE]); }
+static void Co_ShopBuy(s32 i) {
+    if (Co_ShopOwned(i) || !PortCoop_SpendMoney(Co_ShopPrice(i))) { Snd_PlaySe(1, 2); return; }
+    if (i == 0) Port_SettingSave("coop_cap_exp", PortItem_Count(0) + 1);
+    else if (i == 1) Port_SettingSave("coop_cap_zp", PortItem_Count(1) + 1);
+    else if (i == 2) Port_SettingSave("coop_mi_xp", Port_Setting("coop_mi_xp", 0) + 250);
+    else { PortRpg_TitleBought(sShopTitle[i - CO_SHOP_BASE]); PortRpg_SetTitle(sShopTitle[i - CO_SHOP_BASE]); }
+    Port_SettingsWrite();
+    Snd_PlaySe(1, 1);
+}
+static void Co_MissionsUpdate(void) { /* act: 0 the missions, 2 the shop, 1 the statistics (left / right in that order) */
     Pad *pad = &gPad[0];
 
-    Ps_Prompt(0, sCo->act ? "Volver" : "Reclamar");
+    Ps_Prompt(0, sCo->act == 1 ? "Volver" : sCo->act == 2 ? "Comprar" : "Reclamar");
     Ps_Prompt(2, "Volver");
-    if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT)) { sCo->act = !sCo->act; Snd_PlaySe(1, 0); }
-    if (!sCo->act) Ps_Move(&sCo->cur, 6);
-    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && !sCo->act) {
+    if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT)) {
+        static const s32 next[3] = {2, 0, 1}, prev[3] = {1, 2, 0};
+        sCo->act = (pad->gamePressed & PADG_RIGHT) ? next[sCo->act % 3] : prev[sCo->act % 3];
+        sCo->cur = 0; Co_ShopBuild(); Snd_PlaySe(1, 0);
+    }
+    if (sCo->act == 0) Ps_Move(&sCo->cur, 6);
+    else if (sCo->act == 2) Ps_Move(&sCo->cur, Co_ShopCount());
+    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sCo->act == 0) {
         if (PortMis_Claim(sCo->cur)) Snd_PlaySe(1, 1); else Snd_PlaySe(1, 2);
-    } else if ((pad->gamePressed & PADG_TRIANGLE) || ((pad->gamePressed & PADG_CROSS) && sCo->act)) {
+    } else if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sCo->act == 2) {
+        Co_ShopBuy(sCo->cur);
+    } else if ((pad->gamePressed & PADG_TRIANGLE) || ((pad->gamePressed & PADG_CROSS) && sCo->act == 1)) {
         Snd_PlaySe(1, 2);
         sCo->cur = sCoFromMe ? 4 : 0; sCo->act = 0;
         Co_SetPage(sCoFromMe ? CO_ME : CO_START);
@@ -503,7 +535,7 @@ static void Co_Draw(void) {
             Co_Row(60.0f + slide, 380.0f + slide, 160.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
             Co_Row(60.0f + slide, 380.0f + slide, 192.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
             Co_Row(60.0f + slide, 380.0f + slide, 220.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 252.0f, "Misiones y estad\303\255sticas", ready ? mis : NULL, sCo->start == 4, 1);
+            Co_Row(60.0f + slide, 380.0f + slide, 252.0f, "Misiones y tienda", ready ? mis : NULL, sCo->start == 4, 1);
             PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
             sprintf(mine, "%.40s  Nv %d", mineName, PortRpg_MyLevel());
             Co_Row(60.0f + slide, 380.0f + slide, 280.0f, "Mi personaje", mine, sCo->start == 5, 5);
@@ -529,7 +561,7 @@ static void Co_Draw(void) {
         box = sCo->start == 5
             ? Co_RewardsBox()
             : sCo->start == 4
-            ? "Misiones diarias y semanales: Puntos Z, experiencia y c\303\241psulas. Y las estad\303\255sticas de tu personaje."
+            ? "Misiones diarias y semanales, la tienda (c\303\241psulas, experiencia y t\303\255tulos) y las estad\303\255sticas."
             : sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
             : sCo->start == 1
@@ -547,6 +579,22 @@ static void Co_Draw(void) {
         if (sCo->top + CO_ROWS < sPickCount) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
         box = "Elige qui\303\251n quieres ser. En la selecci\303\263n de personaje de la cooperativa saldr\303\241 una casilla m\303\241s, "
               "al final, con \303\251l: es tu personaje, con tu nivel. Su casilla normal sigue siendo el original.";
+    } else if (sCo->page == CO_MISSIONS && sCo->act == 2) {
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Tienda", 1.3f, 300.0f, 0x80);
+        sprintf(line, "Tus Puntos Z: %d     C\303\241psulas: %d EXP, %d Z", PortCoop_Money(), PortItem_Count(0), PortItem_Count(1));
+        Ps_Text(50.0f + slide, 66.0f, line, 0.5f, 410.0f, 1);
+        if (sShopTitles == 0) Co_ShopBuild();
+        for (i = 0; i < Co_ShopCount() && i < 9; i++) {
+            char what[80], value[40];
+            if (i == 0) sprintf(what, "C\303\241psula de EXP (x2 EXP un combate)");
+            else if (i == 1) sprintf(what, "C\303\241psula Z (x2 Puntos Z un combate)");
+            else if (i == 2) sprintf(what, "Entrenamiento: +250 EXP");
+            else sprintf(what, "T\303\255tulo: %.50s", PortRpg_TitleName(sShopTitle[i - CO_SHOP_BASE]));
+            if (Co_ShopOwned(i)) sprintf(value, "Comprado"); else sprintf(value, "%d Z", Co_ShopPrice(i));
+            Co_Row(40.0f + slide, 420.0f + slide, 88.0f + 26.0f * i, what, value, i == sCo->cur,
+                   Co_ShopOwned(i) ? 4 : PortCoop_Money() >= Co_ShopPrice(i) ? 1 : 4);
+        }
+        box = "X: comprar. Los Puntos Z son los de tu partida (los mismos del modo historia). Izquierda/derecha: misiones, estad\303\255sticas.";
     } else if (sCo->page == CO_MISSIONS && !sCo->act) {
         char head[80];
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.3f, 300.0f, 0x80);
@@ -566,7 +614,7 @@ static void Co_Draw(void) {
         }
         sprintf(line, "C\303\241psulas: %d de EXP, %d de Puntos Z (se usan solas en el siguiente combate)", PortItem_Count(0), PortItem_Count(1));
         Ps_Text(50.0f + slide, 302.0f, line, 0.42f, 400.0f, 0);
-        sprintf(line, "Premio: %s. X: reclamar. Izquierda/derecha: estad\303\255sticas.", PortMis_RewardText(sCo->cur));
+        sprintf(line, "Premio: %s. X: reclamar. Izquierda/derecha: tienda, estad\303\255sticas.", PortMis_RewardText(sCo->cur));
         box = line;
     } else if (sCo->page == CO_MISSIONS) {
         static const char *names[11] = {"Combates jugados", "Victorias", "Con Mi personaje", "Da\303\261o total a los rivales",
@@ -585,7 +633,7 @@ static void Co_Draw(void) {
             else sprintf(value, "%d", PortStat(k));
             Co_Row(40.0f + slide, 420.0f + slide, 70.0f + 24.0f * i, (char *)names[k], value, 0, k == 6 ? 1 : 3);
         }
-        sprintf(line, "Victorias en Extremo: %d. Izquierda/derecha: misiones.", PortStat(9));
+        sprintf(line, "Victorias en Extremo: %d. Izquierda/derecha: tienda, misiones.", PortStat(9));
         box = line;
     } else if (sCo->page == CO_MAP) {
         s32 s, rows = (sSagaN + 2) / 3;

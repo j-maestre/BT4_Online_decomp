@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "../third_party/lua/lua.h"
 #include "../third_party/lua/lauxlib.h"
 #include "../third_party/lua/lualib.h"
@@ -424,6 +425,10 @@ enum { RES_VALID, RES_WON, RES_INFINITE, RES_WAVES, RES_GRADE, RES_SCORE, RES_SH
        RES_BEFORE, RES_AFTER, RES_MILLE, RES_DIFF, RES_MINE, RES_COUNT };
 static int sRes[RES_COUNT], sResCaps, sResTeam;
 int PortCoop_ResultTeam(void) { return sResTeam; }
+/* For the HUD (port/src/gs/mods.c): the new level for six seconds after a battle that raised it; else 0. */
+static time_t sLevelUpAt;
+static int sLevelUpTo;
+int PortCoop_LevelUpShow(void) { return sLevelUpTo > 0 && time(NULL) - sLevelUpAt <= 6 ? sLevelUpTo : 0; }
 int PortCoop_ResultCapsules(void) { return sResCaps; }
 int PortCoop_Result(int field) { return field >= 0 && field < RES_COUNT ? sRes[field] : 0; }
 const char *PortCoop_ResultGrade(void) { return kGrades[sRes[RES_GRADE] >= 0 && sRes[RES_GRADE] <= 7 ? sRes[RES_GRADE] : 0]; }
@@ -650,6 +655,7 @@ static void rpg_reward(int won) {
         n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, after > before ? "+%d EXP: ¡nivel %d!" : "+%d EXP (nivel %d)", xp, after);
     if (sResCaps && n < (int)sizeof(sRewardLine))
         n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "  (cápsula x2)");
+    if (after > before) { sLevelUpAt = time(NULL); sLevelUpTo = after; }
     sRes[RES_VALID] = 1; sRes[RES_WON] = won; sRes[RES_INFINITE] = sInfinite; sRes[RES_WAVES] = sInfWaves; sRes[RES_GRADE] = grade;
     sRes[RES_SCORE] = score; sRes[RES_SHARE] = share; sRes[RES_REVIVES] = revives; sRes[RES_DOWNS] = downs; sRes[RES_ZP] = sRewardZp;
     sRes[RES_XP] = xp; sRes[RES_BEFORE] = before; sRes[RES_AFTER] = after; sRes[RES_MILLE] = PortRpg_LevelMille();

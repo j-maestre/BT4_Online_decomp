@@ -782,6 +782,17 @@ s32 MisResult_Run(s32 section) {
 #ifdef PORT
 /* Historia cooperativa (port/src/coop_story.c): the Z points a co-op battle earned, into the save's money (written
    with the save, as the story mode's are). */
+/* The co-op shop (src/menu/port_coop.c): the save's Z points, and spending them (written to the card at once). */
+s32 PortCoop_Money(void) { return gSaveData != NULL ? (s32)P_SAVE->money : 0; }
+s32 PortCoop_SpendMoney(s32 n) {
+    extern s32 McCard_Checksum(void *buf, s32 size, s32 write);
+    extern int Port_McRewriteSystemSave(const void *data, int size);
+    if (gSaveData == NULL || n <= 0 || (s32)P_SAVE->money < n) return 0;
+    P_SAVE->money -= n;
+    McCard_Checksum(gSaveData, 0x4000, 1);
+    Port_McRewriteSystemSave(gSaveData, 0x4000);
+    return 1;
+}
 void PortCoop_AddMoney(s32 n) {
     if (gSaveData == NULL || n <= 0) return;
     P_SAVE->money += n;
