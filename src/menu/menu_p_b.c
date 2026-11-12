@@ -786,5 +786,11 @@ void PortCoop_AddMoney(s32 n) {
     if (gSaveData == NULL || n <= 0) return;
     P_SAVE->money += n;
     if (P_SAVE->money > P_MONEY_MAX) P_SAVE->money = P_MONEY_MAX;
+    {   /* written to the card at once (port/src/plat_mc.c), with its checksum, as the game's own save does */
+        extern s32 McCard_Checksum(void *buf, s32 size, s32 write);
+        extern int Port_McRewriteSystemSave(const void *data, int size);
+        McCard_Checksum(gSaveData, 0x4000, 1);
+        Port_McRewriteSystemSave(gSaveData, 0x4000);
+    }
 }
 #endif

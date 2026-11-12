@@ -174,9 +174,10 @@ static int sJoining;
 /* The endless mode (src/battle/coop_infinite.c generates its rivals): 0 = off, else the rivals at once (2 or 3). */
 static int sInfinite, sInfWaves;
 extern int CoopInf_FirstChara(int k), CoopInf_Wave(void);
-void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; sJoining = 0; sInfinite = 0; }
+static int sDiff;
+void PortCoop_Select(int i) { sSelected = i >= 0 && i < sCount ? i : -1; sOutcome = 0; sJoining = 0; sInfinite = 0; sDiff = Port_Setting("coop_dificultad", 0); if (sDiff < 0 || sDiff > 2) sDiff = 0; }
 void PortCoop_SelectInfinite(int foes) { sSelected = -1; sOutcome = 0; sJoining = 0; sInfinite = foes == 3 ? 3 : 2; }
-void PortCoop_JoinBegin(void) { sSelected = -1; sOutcome = 0; sJoining = 1; sInfinite = 0; }
+void PortCoop_JoinBegin(void) { sSelected = -1; sOutcome = 0; sJoining = 1; sInfinite = 0; sDiff = 0; }
 int PortCoop_Selected(void) { return sSelected; }
 int PortCoop_Infinite(void) { return sInfinite; }
 int PortCoop_Active(void) { return sSelected >= 0 || sJoining || sInfinite; }
@@ -193,10 +194,30 @@ unsigned long long PortCoop_MixContent(unsigned long long base) {
 }
 
 /* The host's announcement, "#coop:<id>", sent in the room's chat (port/src/gs/tag_team_net.c). */
-const char *PortCoop_AnnounceId(void) { return sInfinite == 3 ? "__inf3" : sInfinite ? "__inf2" : sSelected >= 0 ? sCh[sSelected].id : NULL; }
-void PortCoop_Announced(const char *id) {
+/* The chapter's difficulty (0 normal, 1 hard, 2 extreme): the host's choice (setting coop_dificultad), the joiner's
+   from the announcement. The rivals' health and damage and the AI's level go up, and so do the rewards. */
+static const int kDiffHealth[3] = {100, 140, 180}, kDiffDamage[3] = {100, 125, 150}, kDiffXp[3] = {100, 125, 150};
+static const int kDiffZp[3] = {100, 150, 200}, kDiffAi[3] = {0, 1, 2};
+int PortCoop_Difficulty(void) { return sSelected >= 0 ? sDiff : 0; }
+void PortCoop_SetDifficulty(int d) { sDiff = d < 0 ? 0 : d > 2 ? 2 : d; if (!sJoining) { Port_SettingSave("coop_dificultad", sDiff); Port_SettingsWrite(); } }
+int PortCoop_FoeDamagePct(void) { return kDiffDamage[PortCoop_Difficulty()]; }
+const char *PortCoop_DifficultyName(int d) { static const char *n[3] = {"Normal", "Dif\303\255cil", "Extremo"}; return n[d < 0 ? 0 : d > 2 ? 2 : d]; }
+const char *PortCoop_AnnounceId(void) {
+    static char buf[80];
+    if (sInfinite) return sInfinite == 3 ? "__inf3" : "__inf2";
+    if (sSelected < 0) return NULL;
+    snprintf(buf, sizeof(buf), "%s@%d", sCh[sSelected].id, sDiff);
+    return buf;
+}
+void PortCoop_Announced(const char *text) {
     int i;
-    if (!sJoining || !id) return;
+    char id[72];
+    const char *at;
+    if (!sJoining || !text) return;
+    snprintf(id, sizeof(id), "%s", text);
+    at = strchr(text, '@');
+    if (at) { id[at - text < (int)sizeof(id) ? at - text : (int)sizeof(id) - 1] = 0; if (at[1] >= '0' && at[1] <= '2') sDiff = at[1] - '0'; }
+    else sDiff = 0;
     if (!strcmp(id, "__inf2") || !strcmp(id, "__inf3")) { /* the endless mode (the joiner stays "joining": no chapter) */
         int foes = id[5] - '0';
         if (sInfinite != foes) { sInfinite = foes; sSelected = -1; sOutcome = 0; fprintf(stderr, "coop: the host's mode is endless, %d rivals\n", foes); }
@@ -232,14 +253,15 @@ int PortCoop_Reserve(int k, int j, int *chara, int *costume, int *level, int *he
     if (r < 0) return 0;
     *chara = sCh[sSelected].reserve[r].chara;
     *costume = sCh[sSelected].reserve[r].costume;
-    *level = sCh[sSelected].reserve[r].level;
-    *health = sCh[sSelected].reserve[r].health;
+    *level = sCh[sSelected].reserve[r].level + kDiffAi[PortCoop_Difficulty()];
+    if (*level > 4) *level = 4;
+    *health = sCh[sSelected].reserve[r].health * kDiffHealth[PortCoop_Difficulty()] / 100;
     return 1;
 }
 int PortCoop_FoeChara(int k) { return sInfinite ? (k >= 0 && k < sInfinite ? CoopInf_FirstChara(k) : -1) : foe(k) ? foe(k)->chara : -1; }
 int PortCoop_FoeCostume(int k) { return foe(k) ? foe(k)->costume : 0; }
-int PortCoop_FoeLevel(int k) { return foe(k) ? foe(k)->level : 2; }
-int PortCoop_FoeHealth(int k) { return foe(k) ? foe(k)->health : 100; }
+int PortCoop_FoeLevel(int k) { int l = (foe(k) ? foe(k)->level : 2) + kDiffAi[PortCoop_Difficulty()]; return l > 4 ? 4 : l; }
+int PortCoop_FoeHealth(int k) { return (foe(k) ? foe(k)->health : 100) * kDiffHealth[PortCoop_Difficulty()] / 100; }
 int PortCoop_Stage(void) { return sSelected >= 0 ? sCh[sSelected].stage : -1; }
 int PortCoop_Bgm(void) { return sSelected >= 0 ? sCh[sSelected].bgm : -1; }
 int PortCoop_Time(void) { return sSelected >= 0 ? sCh[sSelected].time : 4; }
@@ -309,6 +331,20 @@ const char *PortCoop_ChGrade(int i) {
     g = Port_Setting(key, 0);
     return g >= 1 && g <= 7 ? kGrades[g] : "";
 }
+/* The hardest difficulty chapter i was won at, + 1 (0: never won since difficulties came). */
+int PortCoop_ChBestDiff(int i) {
+    char key[64];
+    if (i < 0 || i >= sCount) return 0;
+    done_key(key, sizeof(key), i); memcpy(key, "coop_difi_", 10);
+    return Port_Setting(key, 0);
+}
+/* The last battle's results, for the results panel (src/menu/port_tbo.c): whole numbers by field. */
+enum { RES_VALID, RES_WON, RES_INFINITE, RES_WAVES, RES_GRADE, RES_SCORE, RES_SHARE, RES_REVIVES, RES_DOWNS, RES_ZP, RES_XP,
+       RES_BEFORE, RES_AFTER, RES_MILLE, RES_DIFF, RES_MINE, RES_COUNT };
+static int sRes[RES_COUNT];
+int PortCoop_Result(int field) { return field >= 0 && field < RES_COUNT ? sRes[field] : 0; }
+const char *PortCoop_ResultGrade(void) { return kGrades[sRes[RES_GRADE] >= 0 && sRes[RES_GRADE] <= 7 ? sRes[RES_GRADE] : 0]; }
+void PortCoop_ResultSeen(void) { sRes[RES_VALID] = 0; }
 const char *PortCoop_RewardLine(void) { return sRewardLine; }
 /* The Z points earned by the last battle, once (src/menu/port_tbo.c pays them into the save). */
 int PortCoop_TakeZPoints(void) { int z = sRewardZp; sRewardZp = 0; return z; }
@@ -325,14 +361,16 @@ static void rpg_reward(int won) {
     score = 40 + share * 40 / 1000 + revives * 8 + (downs == 0 ? 20 : downs == 1 ? 8 : 0);
     if (score > 100) score = 100;
     if (sInfinite) {
-        xp = 30 + sInfWaves * 25 + share * 30 / 1000 + revives * 10;
+        xp = 30 + sInfWaves * 25 + share * 30 / 1000 + revives * 10; /* (the endless mode: no difficulty) */
         sRewardZp = sInfWaves * 400;
     } else if (won) {
         grade = score >= 95 ? 7 : score >= 85 ? 6 : score >= 72 ? 5 : score >= 60 ? 4 : score >= 48 ? 3 : score >= 36 ? 2 : 1;
-        xp = 50 + score + sSelected * 3;
-        sRewardZp = zp[grade] + sSelected * 100;
+        xp = (50 + score + sSelected * 3) * kDiffXp[sDiff] / 100;
+        sRewardZp = (zp[grade] + sSelected * 100) * kDiffZp[sDiff] / 100;
         grade_key(key, sizeof(key), sSelected);
         if (grade > Port_Setting(key, 0)) Port_SettingSave(key, grade);
+        memcpy(key, "coop_difi_", 10);
+        if (sDiff + 1 > Port_Setting(key, 0)) Port_SettingSave(key, sDiff + 1);
     } else {
         xp = 20 + share * 30 / 1000 + revives * 8;
         sRewardZp = 0;
@@ -346,6 +384,10 @@ static void rpg_reward(int won) {
     if (sRewardZp) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "+%d Puntos Z  ", sRewardZp);
     if (xp && n < (int)sizeof(sRewardLine))
         n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, after > before ? "+%d EXP: ¡nivel %d!" : "+%d EXP (nivel %d)", xp, after);
+    sRes[RES_VALID] = 1; sRes[RES_WON] = won; sRes[RES_INFINITE] = sInfinite; sRes[RES_WAVES] = sInfWaves; sRes[RES_GRADE] = grade;
+    sRes[RES_SCORE] = score; sRes[RES_SHARE] = share; sRes[RES_REVIVES] = revives; sRes[RES_DOWNS] = downs; sRes[RES_ZP] = sRewardZp;
+    sRes[RES_XP] = xp; sRes[RES_BEFORE] = before; sRes[RES_AFTER] = after; sRes[RES_MILLE] = PortRpg_LevelMille();
+    sRes[RES_DIFF] = sInfinite ? 0 : sDiff; sRes[RES_MINE] = sUsingMine;
     fprintf(stderr, "coop: reward score=%d share=%d revives=%d downs=%d grade=%s xp=%d level %d->%d zp=%d\n", score, share,
             revives, downs, kGrades[grade], xp, before, after, sRewardZp);
 }

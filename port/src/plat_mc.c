@@ -82,6 +82,46 @@ static int host_path(int port, const char *name, char *out, size_t size) {
     return 1;
 }
 
+/* Historia cooperativa (src/menu/menu_p_b.c, PortCoop_AddMoney): the system save written again at once, so that the
+   Z points of a co-op battle are kept even if the game is closed before it saves by itself. Only over a save that is
+   there already, of the same size (the data, its checksum already set by the caller); 1 when written. */
+int Port_McRewriteSystemSave(const void *data, int size) {
+    char path[600], temp[640];
+    FILE *f;
+    long len;
+
+    if (data == NULL || size <= 0 || !host_path(0, "BASLUS-21678DBZT3/BASLUS-21678DBZT3", path, sizeof(path))) return 0;
+    f = fopen(path, "rb");
+    if (f == NULL) return 0;
+    fseek(f, 0, SEEK_END);
+    len = ftell(f);
+    if (len != size) { fclose(f); return 0; }
+    {   /* (a guard: the one on the card is this one, saved before, with a few things changed since; a save that was
+           not loaded, the defaults, differs in thousands of bytes and is never written over the player's) */
+        unsigned char *old = (unsigned char *)malloc((size_t)size);
+        long i, diff = 0;
+        if (old == NULL) { fclose(f); return 0; }
+        fseek(f, 0, SEEK_SET);
+        if (fread(old, 1, (size_t)size, f) != (size_t)size) { free(old); fclose(f); return 0; }
+        for (i = 0; i < size; i++) diff += old[i] != ((const unsigned char *)data)[i];
+        free(old);
+        if (diff > 1024) { fclose(f); fprintf(stderr, "coop: the save on the card is not this one (%ld bytes differ): not written\n", diff); return 0; }
+    }
+    fclose(f);
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    f = fopen(temp, "wb");
+    if (f == NULL) return 0;
+    if (fwrite(data, 1, (size_t)size, f) != (size_t)size) { fclose(f); remove(temp); return 0; }
+    if (fclose(f) != 0) { remove(temp); return 0; }
+#ifdef _WIN32
+    {   extern int __stdcall MoveFileExA(const char *, const char *, unsigned long);
+        if (!MoveFileExA(temp, path, 1 | 8)) { remove(temp); return 0; } } /* (replace existing, write through) */
+#else
+    if (rename(temp, path) != 0) { remove(temp); return 0; }
+#endif
+    return 1;
+}
+
 int func_002A1A48(void) { return 0; } /* sceMcInit */
 
 /* sceMcGetInfo: the outputs are filled when the request completes. */

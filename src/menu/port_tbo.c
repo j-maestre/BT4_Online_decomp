@@ -1175,6 +1175,12 @@ static void Tb_TagRoomUpdate(s32 live){
     Pad *pad=&gPad[0];s32 dir,local=!strcmp(Port_TagCode(),"LOCAL0");
     Port_TagPoll();
     {const char *outcome=PortCoop_TakeOutcome();if(outcome)Tb_Say(outcome);} /* a chapter's closing or defeat line */
+    {extern int PortCoop_Result(int);extern void PortCoop_ResultSeen(void);
+     if(PortCoop_Active()&&PortCoop_Result(0)&&Port_TagPhase()==1&&!(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6))){ /* the results panel, until a button */
+        {extern int PortCoop_TakeZPoints(void);extern void PortCoop_AddMoney(s32);s32 zp=PortCoop_TakeZPoints();if(zp>0)PortCoop_AddMoney(zp);}
+        Ps_Prompt(0,"Continue");
+        if(live&&(pad->gamePressed&(PADG_CROSS|PADG_START|PADG_TRIANGLE|PADG_CIRCLE))){PortCoop_ResultSeen();Snd_PlaySe(1,1);pad->gamePressed=0;}
+        return;}}
     {extern int PortCoop_TakeZPoints(void);extern void PortCoop_AddMoney(s32);s32 zp=PortCoop_TakeZPoints();if(zp>0)PortCoop_AddMoney(zp);} /* its Z points */
     if(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6)){
         char why[128];Ps_Copy(why,(char*)Port_TagError(),128);Port_TagClose();
@@ -2176,9 +2182,52 @@ static f32 Tb_TagBottom(void){
     s32 a=Port_TagTeamSlots(0),b=Port_TagTeamSlots(1);
     return 116.0f+Tb_TagRowStep()*(f32)(a>b?a:b);
 }
+/* Historia cooperativa: the results of the battle just played (port/src/coop_story.c, PortCoop_Result), over the
+   room until the player presses a button: the grade, what each did, the Z points and the experience. */
+extern int PortCoop_Result(int field);extern const char *PortCoop_ResultGrade(void),*PortCoop_DifficultyName(int);
+extern void PortCoop_ResultSeen(void);
+enum{TBR_VALID,TBR_WON,TBR_INFINITE,TBR_WAVES,TBR_GRADE,TBR_SCORE,TBR_SHARE,TBR_REVIVES,TBR_DOWNS,TBR_ZP,TBR_XP,TBR_BEFORE,
+     TBR_AFTER,TBR_MILLE,TBR_DIFF,TBR_MINE};
+static s32 Tb_CoopResultShown(void){return PortCoop_Active()&&PortCoop_Result(TBR_VALID)&&Port_TagPhase()==1&&!sTb->tagChatTyping;}
+static void Tb_DrawCoopResult(void){
+    f32 left=Tb_TagWideLeft(),right=512-left;
+    Ps_Panel(TBO_KIT_WINDOW,left+36,64,right-36,334,0x80);
+}
+static void Tb_DrawCoopResultText(void){
+    char line[128];f32 left=Tb_TagWideLeft(),right=512-left,cx=256,x0=left+62,x1=right-62,fill;
+    s32 won=PortCoop_Result(TBR_WON),inf=PortCoop_Result(TBR_INFINITE),share=PortCoop_Result(TBR_SHARE);
+    s32 before=PortCoop_Result(TBR_BEFORE),after=PortCoop_Result(TBR_AFTER);
+    const char *title=PortCoop_Title();
+    Ps_Align(1);
+    Ps_TextRaw(cx,76,inf?"FIN DEL MODO INFINITO":won?"\302\241CAP\303\215TULO SUPERADO!":"DERROTA",.80f,x1-x0,won||inf?1:4);
+    if(title)Ps_TextRaw(cx,102,(char*)title,.46f,x1-x0,3);
+    if(inf){sprintf(line,"Oleadas superadas: %d",PortCoop_Result(TBR_WAVES));Ps_TextRaw(cx,130,line,.80f,x1-x0,1);}
+    else if(PortCoop_Result(TBR_GRADE)>0){
+        Ps_TextRaw(cx,122,"NOTA",.42f,120,0);
+        Ps_TextRaw(cx,134,(char*)PortCoop_ResultGrade(),1.9f,120,1);
+        sprintf(line,"Dificultad: %s",PortCoop_DifficultyName(PortCoop_Result(TBR_DIFF)));Ps_TextRaw(cx,184,line,.40f,x1-x0,3);
+    }
+    Ps_Align(0);
+    sprintf(line,"Tu da\303\261o: %d%%",(share+5)/10);Ps_TextRaw(x0,206,line,.46f,(x1-x0)/2,0);
+    sprintf(line,"Compa\303\261ero: %d%%",(1000-share+5)/10);Ps_TextRaw(x0,224,line,.46f,(x1-x0)/2,0);
+    sprintf(line,"Revives: %d",PortCoop_Result(TBR_REVIVES));Ps_TextRaw(cx+10,206,line,.46f,(x1-x0)/2,0);
+    sprintf(line,"Ca\303\255das: %d",PortCoop_Result(TBR_DOWNS));Ps_TextRaw(cx+10,224,line,.46f,(x1-x0)/2,0);
+    if(PortCoop_Result(TBR_ZP)>0){sprintf(line,"+%d Puntos Z",PortCoop_Result(TBR_ZP));Ps_TextRaw(x0,250,line,.56f,(x1-x0)/2,1);}
+    if(PortCoop_Result(TBR_XP)>0){sprintf(line,"+%d EXP",PortCoop_Result(TBR_XP));Ps_TextRaw(cx+10,250,line,.56f,(x1-x0)/2,5);}
+    if(PortCoop_Result(TBR_MINE)){
+        if(after>before)sprintf(line,"Mi personaje: nivel %d \342\206\222 %d  \302\241Sube de nivel!",before,after);
+        else sprintf(line,"Mi personaje: nivel %d",after);
+        Ps_TextRaw(x0,274,line,.46f,x1-x0,after>before?1:0);
+        fill=x0+(x1-x0)*PortCoop_Result(TBR_MILLE)/1000.0f;
+        Ps_Rect(x0,294,x1,299,Ps_Rgba(23,50,60,0x80),Ps_Rgba(23,50,60,0x80));
+        Ps_Rect(x0,294,fill,299,Ps_Rgba(255,213,91,0x80),Ps_Rgba(255,190,60,0x80));
+    }else Ps_TextRaw(x0,274,"Con la casilla normal no se gana EXP: elige la de MI PERSONAJE.",.40f,x1-x0,4);
+    Ps_Align(1);Ps_TextRaw(cx,310,"X: continuar",.42f,200,0);Ps_Align(0);
+}
 static void Tb_DrawTagRoom(void){
     s32 i,team,local=!strcmp(Port_TagCode(),"LOCAL0");f32 bottom=Tb_TagBottom(),step=Tb_TagRowStep();
     f32 left=Tb_TagWideLeft(),right=512-left;
+    if(Tb_CoopResultShown()){Tb_DrawCoopResult();return;}
     if(sTb->tagQuick&&Port_TagPhase()<2){Ps_Panel(TBO_KIT_WINDOW,left+14,108,right-14,246,0x80);return;}
     if(sTb->tagChatTyping){Ps_Panel(TBO_KIT_WINDOW,28,94,484,322,0x80);Ps_Pill(TBO_KIT_BAR,40,276,472,305,0x80);return;}
     for(team=0;team<2;++team){
@@ -2200,6 +2249,7 @@ static void Tb_DrawTagRoomText(void){
     char line[128];s32 i,team,local=!strcmp(Port_TagCode(),"LOCAL0");
     f32 step=Tb_TagRowStep(),bottom=Tb_TagBottom();
     f32 left=Tb_TagWideLeft(),right=512-left;
+    if(Tb_CoopResultShown()){Tb_DrawCoopResultText();return;}
     if(sTb->tagQuick&&Port_TagPhase()<2){
         s32 seconds=sTb->modeT/60;
         Ps_Align(1);Ps_Text(256,145,Port_TagPhase()?"Connecting players...":"Searching for players...",.90f,430-2*left,1);

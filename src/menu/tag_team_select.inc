@@ -46,13 +46,17 @@ static void TeamSel_TagShowHover(s32 skip){
         if(col>=TS_COLS||row*TS_COLS+col>=gTeamSel->masterCount[t])continue;
         slot=CoopUiIndex(w)%5;
         if(sTagHoverShown[t]==w&&side->member[slot].col==col&&side->member[slot].row==row&&(chara<0||side->chara==chara))continue;
+        {s32 shown=sTagHoverShown[t]==w,oldCol=side->member[slot].col,oldRow=side->member[slot].row,moved=oldCol!=col||oldRow!=row;
         side->cur=slot;side->state=TEAMSEL_ST_GRID;
+        /* the reel's highlight follows, as the game moves one's own cursor (menu_e_b.c, TeamSel_Input) */
+        if(shown&&moved)TeamSel_ClipGoto(t+3,t,TEAMSEL_CLIP_CHIP,"fl_off_start");
+        if(shown&&row!=oldRow&&gTeamSel->rows[t]>1){Flash_GotoLabel(&gTeamSel->flash[t+3],row<oldRow?"fl_reel_down":"fl_reel_up",1);side->mask=1;}
         side->member[slot].col=col;side->member[slot].row=row;
         TeamSel_SetChips(t);side->chara=chara>=0?chara:side->chip[0][col];TeamSel_RequestFace(t); /* (its form too) */
-        if(sTagHoverShown[t]!=w){
+        if(!shown){
             Flash_GotoLabel(&gTeamSel->flash[t+1],"fl_out",1);Flash_GotoLabel(&gTeamSel->flash[t+3],"fl_in",1);
             TeamSel_ClipGoto(t+3,t,TEAMSEL_CLIP_CHIP,"fl_on_start");
-        }
+        }else if(moved)TeamSel_ClipGoto(t+3,t,TEAMSEL_CLIP_CHIP,"fl_on_start");}
         sTagHoverShown[t]=w;
     }
 }
@@ -394,6 +398,7 @@ s32 TeamSel_TagRun(s32 section){
     if(CoopUiOn()){team=CoopUiTeam(seat)>1?0:CoopUiTeam(seat);slot=CoopUiIndex(seat)%5;}
     s32 i,localTurn=0,pending=0,result=1,exit=0,testFrames=0,startLocal=0,stageFrames=0,chosenStage=0,chosenBgm=2,keepRoom=0,mapPending=0;
     sTagCoopFailed=-1;sTagHoverShown[0]=sTagHoverShown[1]=-1;Port_TagHoverClear();
+    {extern void PortCoop_ResultSeen(void);PortCoop_ResultSeen();} /* (the last results panel: gone with the next draft) */
     Pad savedPads[2];SaveData *savedSave;
     if(seat<0 || seat>=10 || Port_TagPhase()!=2)return 0;
     saved[0]=gTsProgress->team[0];saved[1]=gTsProgress->team[1];

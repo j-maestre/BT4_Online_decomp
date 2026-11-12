@@ -220,11 +220,19 @@ static void Co_ListUpdate(void) {
     }
 }
 
+extern int PortCoop_Difficulty(void), PortCoop_ChBestDiff(int), PortRpg_LevelMille(void);
+extern void PortCoop_SetDifficulty(int d);
+extern const char *PortCoop_DifficultyName(int d);
+static s32 Co_Diff(void) { s32 d = Port_Setting("coop_dificultad", 0); return d < 0 ? 0 : d > 2 ? 2 : d; }
 static void Co_ChapterUpdate(void) {
     Pad *pad = &gPad[0];
 
     Ps_Prompt(0, "Crear sala");
     Ps_Prompt(2, "Volver");
+    if (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT)) { /* the difficulty */
+        s32 d = Co_Diff() + ((pad->gameRepeat & PADG_RIGHT) ? 1 : -1);
+        if (d >= 0 && d <= 2) { PortCoop_SetDifficulty(d); Snd_PlaySe(1, 0); }
+    }
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         PortCoop_Select(sCo->cur);
@@ -291,6 +299,22 @@ static void Co_Wrap(f32 x, f32 y, const char *text, f32 scale, f32 width, f32 st
     }
 }
 
+/* "Mi personaje"'s box: the experience and the level rewards (src/battle/coop_infinite.c applies them). */
+static const char *Co_RewardsBox(void) {
+    static char text[400];
+    static const struct { s32 level; const char *what; } rw[5] = {
+        {10, "revives a tu compa\303\261ero en 2 s"}, {25, "te levantas con 60% de vida"},
+        {40, "teletransporte junto a tu compa\303\261ero en 0,5 s"}, {60, "recibes 10% menos da\303\261o"},
+        {80, "revives desde m\303\241s lejos"}};
+    s32 lv = PortRpg_MyLevel(), i, have = 0, next = -1;
+    char one[120];
+    for (i = 0; i < 5; i++) { if (lv >= rw[i].level) have = i + 1; else if (next < 0) next = i; }
+    sprintf(text, "Nivel %d (%d%% hasta el siguiente). Recompensas: %d de 5.", lv, PortRpg_LevelMille() / 10, have);
+    if (have > 0) { sprintf(one, " La \303\272ltima: %s.", rw[have - 1].what); Ps_Cat(text, one, 400); }
+    if (next >= 0) { sprintf(one, " Al Nv %d: %s.", rw[next].level, rw[next].what); Ps_Cat(text, one, 400); }
+    return text; /* (the box takes some 220 letters: the latest reward and the next only) */
+}
+
 static void Co_Draw(void) {
     f32 slide = (1.0f - Co_In()) * -160.0f;
     s32 count = PortCoop_Count(), i;
@@ -315,14 +339,27 @@ static void Co_Draw(void) {
             PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
             sprintf(mine, "%.40s  Nv %d", mineName, PortRpg_MyLevel());
             Co_Row(60.0f + slide, 380.0f + slide, 268.0f, "Mi personaje", mine, sCo->start == 4, 5);
+            {   f32 x0 = 74.0f + slide, x1 = 366.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
+                Ps_Rect(x0, 296.0f, x1, 300.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
+                Ps_Rect(x0, 296.0f, fill, 300.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+            }
         }
-        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 302.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
+        {   s32 k, won = 0, top = 0;
+            char prog[96];
+            for (k = 0; k < count; k++) {
+                if (PortCoop_Done(k)) won++;
+                if (PortCoop_ChGrade(k)[0] == 'S' || PortCoop_ChGrade(k)[0] == 'Z') top++;
+            }
+            sprintf(prog, "Cap\303\255tulos superados: %d de %d   \302\267   Notas S o Z: %d", won, count, top);
+            Ps_Text(60.0f + slide, 120.0f, prog, 0.42f, 360.0f, 3);
+        }
+        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 308.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
         else if (PortCoop_RewardLine()[0]) { /* the last battle's grade, Z points and experience */
             sprintf(line, "\303\232ltimo combate: %.120s", PortCoop_RewardLine());
-            Co_Wrap(50.0f + slide, 302.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
+            Co_Wrap(50.0f + slide, 308.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
         }
         box = sCo->start == 4
-            ? "Tu propio personaje: una copia del que elijas, que sube de nivel con cada combate seg\303\272n lo bien que lo hagas."
+            ? Co_RewardsBox()
             : sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
             : sCo->start == 1
@@ -350,6 +387,7 @@ static void Co_Draw(void) {
                 s32 open = PortCoop_Unlocked(i);
                 char done[40], *value;
                 sprintf(done, PortCoop_ChGrade(i)[0] ? "Nota %s" : "Completado", PortCoop_ChGrade(i));
+                if (PortCoop_ChBestDiff(i) >= 2) Ps_Cat(done, PortCoop_ChBestDiff(i) >= 3 ? " (Extremo)" : " (Dif\303\255cil)", 40);
                 value = PortCoop_Done(i) ? done : open ? (char *)PortCoop_ChSaga(i) : "Bloqueado";
                 Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
                        i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
@@ -385,8 +423,15 @@ static void Co_Draw(void) {
                 Ps_Text(120.0f + slide, 216.0f + 18.0f * (PortCoop_ChFoeCount(c) < 3 ? PortCoop_ChFoeCount(c) : 3), more, 0.5f, 340.0f, 1);
             }
         }
-        Co_Row(60.0f + slide, 300.0f + slide, 296.0f, "Crear sala", NULL, 1, 3);
-        box = "Crea la sala y dale el c\303\263digo a tu amigo: \303\251l solo tiene que elegir \"Unirse a una sala\".";
+        {   static const char *more[3] = {"recompensas normales", "rivales m\303\241s duros: +50% Puntos Z, +25% EXP",
+                                          "rivales mucho m\303\241s duros: x2 Puntos Z, +50% EXP"};
+            char dv[64];
+            sprintf(dv, "<  %s  >", PortCoop_DifficultyName(Co_Diff()));
+            Co_Row(60.0f + slide, 380.0f + slide, 262.0f, "Dificultad", dv, 0, Co_Diff() == 0 ? 3 : Co_Diff() == 1 ? 1 : 4);
+            Ps_Text(70.0f + slide, 288.0f, (char *)more[Co_Diff()], 0.42f, 320.0f, 0);
+        }
+        Co_Row(60.0f + slide, 300.0f + slide, 306.0f, "Crear sala", NULL, 1, 3);
+        box = "Izquierda/derecha: dificultad. Crea la sala y dale el c\303\263digo a tu amigo: \303\251l solo tiene que elegir \"Unirse a una sala\".";
     }
     PortOnline_Raw(0);
     MsgWin_PortDrawStringHd(Co_Box(box));
