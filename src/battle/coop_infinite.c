@@ -158,6 +158,7 @@ static s32 sLvPts[10][4];    /* each player's improvement points: health, attack
 /* The team combo: both players striking the same rival within a second and a half: +25% damage while it lasts. */
 #define COMBO_TICKS 45
 static s32 sLvTick, sLvHitAt[10], sLvHitOn[10], sComboFlash, sCombos;
+static s32 sLvHab[10]; /* the ki abilities bought (port/src/coop_story.c): 1 a ki bar more at the start, 2 ki back with each hit */
 /* The level rewards of "Mi personaje" (port/src/coop_story.c lists them): level 10 revives a partner in two seconds,
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
@@ -189,6 +190,10 @@ void CoopRevive_Update(void) {
     if (sBossFlash > 0) sBossFlash--;
     if (sComboFlash > 0) sComboFlash--;
     sLvTick++;
+    if (sLvTick == 2 && sLvOn) { /* (ability: a ki bar more at the start) */
+        s32 a2;
+        for (a2 = 0; a2 < TagBattle_Count() && a2 < 10; a2++) if (sLvHab[a2] & 1) BtlMember_AddKi(BtlChar_Get(a2), 20000);
+    }
     if (!sRevOn || !TagBattle_Active()) return;
     for (d = 0; d < n && d < 10; d++) {
         BtlMemberChr *down = BtlChar_Get(d);
@@ -330,6 +335,7 @@ void CoopLv_Configure(s32 on) {
     sLvAttacker = -1;
     sLvFoePct = 100;
     memset(sLvPts, 0, sizeof(sLvPts));
+    memset(sLvHab, 0, sizeof(sLvHab));
     memset(sLvHitAt, 0, sizeof(sLvHitAt)); memset(sLvHitOn, 0, sizeof(sLvHitOn)); sLvTick = 0; sComboFlash = 0; sCombos = 0;
     memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
@@ -345,6 +351,7 @@ void CoopLv_SetPoints(s32 actor, s32 hp, s32 atk, s32 def, s32 ki) {
     if (actor < 0 || actor >= 10) return;
     sLvPts[actor][0] = hp; sLvPts[actor][1] = atk; sLvPts[actor][2] = def; sLvPts[actor][3] = ki;
 }
+void CoopLv_SetAbilities(s32 actor, s32 bits) { if (actor >= 0 && actor < 10) sLvHab[actor] = bits & 3; }
 /* The ki an action costs this fighter (src/battle/btl_char_member.c, BtlMember_HasKi / SpendKi): 0.5% less a ki point. */
 s32 CoopLv_KiCost(BtlMemberChr *chr, s32 amount) {
     s32 a = chr != NULL ? chr->side : -1;
@@ -372,6 +379,7 @@ s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
     if (a >= 0 && a < 10 && a != v && TagBattle_Team(a) != TagBattle_Team(v)) {
         if (sLvLevel[a] > 0) amount = amount * CoopLv_AttackPct(sLvLevel[a]) / 100;
         if (sLvPts[a][1] > 0) amount = amount * (200 + sLvPts[a][1]) / 200; /* (attack points) */
+        if ((sLvHab[a] & 2) && TagBattle_Team(v) == 1) BtlMember_AddKi(BtlChar_Get(a), amount / 2); /* (ability: ki back with each hit) */
         if (TagBattle_Team(a) == 0 && TagBattle_Team(v) == 1) { /* the team combo */
             s32 b;
             sLvHitAt[a] = sLvTick + 1; sLvHitOn[a] = v;

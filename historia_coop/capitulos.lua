@@ -27,6 +27,7 @@
 --   intro      el texto que se lee antes de crear la sala
 --   cierre     el texto al ganar (cabe en unas 3 líneas)
 --   derrota    el texto al perder (opcional)
+--   secreto    (opcional) capítulo secreto: se abre al sacar nota S o Z en todos los capítulos de esa saga
 --   dialogo    (opcional) la conversación antes del combate, línea a línea: { {"Quién", "Qué dice"}, ... }
 --              (hasta 8 líneas)
 --
@@ -813,6 +814,144 @@ return {
         intro = "Baby ha usado la luz de la Tierra para transformarse en un Ozaru dorado. El gigante más fuerte de todos: el último reto.",
         cierre = "El Ozaru dorado cae. Ya no queda ningún gigante en pie.",
         derrota = "El Ozaru dorado os mira desde lo alto y se ríe.",
+    },
+    -- ------------------------------------------------------------------ Capítulos secretos
+    -- Cada uno se abre al sacar nota S o Z en todos los capítulos de su saga («secreto»).
+    {
+        id = "z1_elite",
+        saga = "Capítulos secretos",
+        secreto = "Saga Saiyajin",
+        titulo = "La élite al completo",
+        pareja = "Goku (Med) y Piccoro (Fin)",
+        dialogo = {
+            { "Vegeta", "¿Creíais que me había rendido? Esta vez no estoy solo." },
+            { "Nappa", "¡Por fin un combate de verdad!" },
+            { "Goku", "Os habéis hecho más fuertes... nosotros también." },
+        },
+        rivales = {
+            { personaje = 80, nivel = 4, vida = 280, nombre = "Nappa" },
+            { personaje = 29, nivel = 4, vida = 300, nombre = "Vegeta (Explorador)" },
+        },
+        refuerzos = {
+            { personaje = 77, nivel = 4, vida = 220, nombre = "Raditz", detras = 1 },
+            { personaje = 31, nivel = 4, vida = 260, nombre = "Vegeta", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Los saiyajin vuelven con todo: Nappa, Vegeta y Raditz, en el nivel más difícil de la CPU.",
+        cierre = "La élite saiyajin ha caído entera. ¡Sois los verdaderos guerreros de élite!",
+        derrota = "Vegeta: «Los saiyajin de élite no pierden dos veces».",
+    },
+    {
+        id = "z2_cooler",
+        saga = "Capítulos secretos",
+        secreto = "Saga Freezer",
+        titulo = "El hermano mayor",
+        pareja = "Goku (Med) y Vegeta",
+        dialogo = {
+            { "Cooler", "Mi hermano siempre fue débil. Yo tengo una forma más." },
+            { "Vegeta", "Otro de esa familia de lagartos..." },
+            { "Goku", "Cuidado: dicen que tiene copias de metal." },
+        },
+        rivales = {
+            { personaje = 126, nivel = 4, vida = 260, transforma = 40, nombre = "Cooler" },
+            { personaje = 128, nivel = 3, vida = 200, nombre = "Metal Cooler" },
+        },
+        refuerzos = {
+            { personaje = 127, nivel = 4, vida = 320, nombre = "Cooler (Forma final)", detras = 1 },
+            { personaje = 128, nivel = 3, vida = 200, nombre = "Metal Cooler", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Cooler, el hermano de Freezer, se transforma a mitad de combate y trae sus copias de metal.",
+        cierre = "Cooler y sus copias han caído. La familia de Freezer ya no asusta a nadie.",
+        derrota = "Cooler: «Esto es lo que pasa cuando se enfrentan a mí».",
+    },
+    {
+        id = "z3_cell",
+        saga = "Capítulos secretos",
+        secreto = "Saga Cell",
+        titulo = "Cell, el perfecto",
+        pareja = "Gohan (Joven) y Vegeta",
+        dialogo = {
+            { "Cell", "He vuelto más perfecto que nunca. Y mis hijos también." },
+            { "Gohan", "Esta vez no voy a dudar." },
+        },
+        rivales = {
+            { personaje = 107, nivel = 4, vida = 380, nombre = "Cell (Super Perfecto)" },
+            { personaje = 109, nivel = 3, vida = 140, nombre = "Cell Jr." },
+        },
+        refuerzos = {
+            { personaje = 109, nivel = 3, vida = 140, nombre = "Cell Jr.", detras = 2 },
+            { personaje = 109, nivel = 3, vida = 140, nombre = "Cell Jr.", detras = 2 },
+            { personaje = 109, nivel = 3, vida = 140, nombre = "Cell Jr.", detras = 2 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Cell con casi el doble de vida y una cola de Cell Jr. que no se acaba.",
+        cierre = "Cell explota de verdad esta vez. Lo habéis hecho perfecto.",
+        derrota = "Cell: «Perfecto... como siempre».",
+    },
+    {
+        id = "z4_maldad",
+        saga = "Capítulos secretos",
+        secreto = "Saga de Bu",
+        titulo = "La pura maldad",
+        pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Majin Bu (Pura maldad)", "(Se ríe sin parar y estira los brazos.)" },
+            { "Vegeta", "Este Bu no piensa. Solo destruye." },
+            { "Goku", "Si cae, vuelve en su forma pura. ¡Preparaos!" },
+        },
+        rivales = {
+            { personaje = 192, nivel = 4, vida = 300, transforma = 40, nombre = "Majin Bu (Pura maldad)" },
+        },
+        refuerzos = {
+            { personaje = 117, nivel = 4, vida = 380, nombre = "Bu (Forma pura)", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Bu en su forma más malvada; al 40% de vida se convierte en Bu puro.",
+        cierre = "No queda nada de Bu. La Tierra por fin descansa.",
+        derrota = "Bu se ríe mientras todo se convierte en caramelo.",
+    },
+    {
+        id = "z5_legendario",
+        saga = "Capítulos secretos",
+        secreto = "Saga de las Películas",
+        titulo = "El legendario despierta",
+        pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Broly", "Kakarotto... ¡Kakarottooo!" },
+            { "Vegeta", "Su poder no deja de crecer. Al final no habrá quien lo pare." },
+            { "Goku", "Pues hay que pararlo antes de que se transforme del todo." },
+        },
+        rivales = {
+            { personaje = 189, nivel = 4, vida = 300, transforma = 40, nombre = "Broly (SS)" },
+        },
+        refuerzos = {
+            { personaje = 190, nivel = 4, vida = 400, nombre = "Broly (Legendario)", detras = 1 },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Broly empieza en Súper Saiyajin y al 40% de vida despierta como el Legendario.",
+        cierre = "El Súper Saiyajin Legendario ha caído. Nadie lo creerá.",
+        derrota = "Broly ruge. No queda nadie en pie.",
+    },
+    {
+        id = "z6_jiren",
+        saga = "Capítulos secretos",
+        secreto = "Saga Super",
+        titulo = "Más allá de los dioses",
+        pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Jiren", "Solo la fuerza tiene valor. Demostradla." },
+            { "Toppo", "Como dios de la destrucción, no os dejaré pasar." },
+            { "Goku", "¡Este es el combate más difícil de todos!" },
+        },
+        rivales = {
+            { personaje = 151, nivel = 4, vida = 400, nombre = "Jiren" },
+            { personaje = 150, nivel = 4, vida = 300, nombre = "Toppo (Hakaishin)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Capítulo secreto. Jiren y Toppo como dios de la destrucción, con toda su vida. El reto final.",
+        cierre = "Habéis derrotado a lo más fuerte del Universo 11. No hay nada por encima.",
+        derrota = "Jiren se da la vuelta sin decir nada.",
     },
 }
 

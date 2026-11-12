@@ -456,7 +456,7 @@ static int coop_told_humans;static Uint64 coop_told_at; /* the chapter announced
 static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_chara[TT_MAX_PLAYERS],hover_sent_col=-1,hover_sent_row=-1,hover_sent_seat=-1,hover_sent_chara=-1;static Uint64 hover_sent_at;
 /* Historia cooperativa: each player's level for the fighter it chose ("#lv:<chara>:<level>", sent just before the
  * choice itself, so the partner has it before the choice arrives); the battle and the load digest use it. */
-static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS],lv_pts[TT_MAX_PLAYERS][4];
+static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS],lv_pts[TT_MAX_PLAYERS][4],lv_hab[TT_MAX_PLAYERS];
 /* Each player's card, "#me:<level>:<title>:<best grade>:<name>", sent every few seconds in the room: shown by the
    names (src/menu/port_tbo.c) and in the battle (port/src/gs/mods.c). */
 static int me_level[TT_MAX_PLAYERS],me_title[TT_MAX_PLAYERS],me_grade[TT_MAX_PLAYERS],me_known[TT_MAX_PLAYERS];static char me_name[TT_MAX_PLAYERS][20];static Uint64 me_sent_at;
@@ -477,6 +477,13 @@ int Port_TagSeatPoints(int seat,int w){
     if(w<0||w>3||Port_TagSeatLevel(seat)<=0)return 0;
     if(seat==Tt_Seat(&state,member))return PortRpg_PickPoints(w);
     return lv_pts[seat][w];
+}
+/* The ki abilities of a seat's fighter (bits: 1 a ki bar more at the start, 2 ki back with each hit), as its level. */
+int Port_TagSeatAbilities(int seat){
+    extern int PortRpg_PickAbilities(void);
+    if(Port_TagSeatLevel(seat)<=0)return 0;
+    if(seat==Tt_Seat(&state,member))return PortRpg_PickAbilities();
+    return lv_hab[seat];
 }
 /* A seat's card: its fighter's name ("" without one), "Nv <level>  <title>" and its best grade; 0 unknown. */
 int Port_TagSeatCard(int seat,char *name,int ncap,char *line,int lcap){
@@ -801,7 +808,8 @@ void Port_TagCommand(int command,int a,int b){
     if(command==TTW_CHOOSE&&Port_TagDraftSeat()==Tt_Seat(&state,member)){ /* Historia cooperativa: my level first */
         extern int PortCoop_Active(void),PortRpg_PickLevel(void);
         if(PortCoop_Active()){extern int PortRpg_PickPoints(int);char line[64];
-            snprintf(line,sizeof(line),"#lv:%d:%d:%d:%d:%d:%d",a,PortRpg_PickLevel(),PortRpg_PickPoints(0),PortRpg_PickPoints(1),PortRpg_PickPoints(2),PortRpg_PickPoints(3));Port_TagChatSend(line);}
+            extern int PortRpg_PickAbilities(void);
+            snprintf(line,sizeof(line),"#lv:%d:%d:%d:%d:%d:%d:%d",a,PortRpg_PickLevel(),PortRpg_PickPoints(0),PortRpg_PickPoints(1),PortRpg_PickPoints(2),PortRpg_PickPoints(3),PortRpg_PickAbilities());Port_TagChatSend(line);}
     }
 
     request(packet);
@@ -903,8 +911,9 @@ void Port_TagPoll(void){
             for(j=0;j<159&&client.in[16+j];++j){unsigned char c=client.in[16+j];text[j]=c>=32&&c<127?c:'?';}text[j]=0;
 
             if(!strncmp(text,"#coop:",6)){extern void PortCoop_Announced(const char*);PortCoop_Announced(text+6);continue;} /* Historia cooperativa: the host's chapter */
-            if(!strncmp(text,"#lv:",4)){int c=-1,l=0,p0=0,p1=0,p2=0,p3=0; /* Historia cooperativa: the sender's level (and points) for its fighter */
-                if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d:%d:%d:%d:%d",&c,&l,&p0,&p1,&p2,&p3)>=2&&c>=0&&c<512&&l>=0&&l<=100){
+            if(!strncmp(text,"#lv:",4)){int c=-1,l=0,p0=0,p1=0,p2=0,p3=0,hb=0; /* Historia cooperativa: the sender's level (points, abilities) for its fighter */
+                if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d:%d:%d:%d:%d:%d",&c,&l,&p0,&p1,&p2,&p3,&hb)>=2&&c>=0&&c<512&&l>=0&&l<=100){
+                    lv_hab[seat]=hb&3;
                     lv_chara[seat]=c;lv_level[seat]=l;lv_pts[seat][0]=p0<0?0:p0>40?40:p0;lv_pts[seat][1]=p1<0?0:p1>40?40:p1;lv_pts[seat][2]=p2<0?0:p2>40?40:p2;lv_pts[seat][3]=p3<0?0:p3>40?40:p3;}
                 continue;}
             if(!strncmp(text,"#me:",4)){int l=0,t=0,g=0,n=0; /* the sender's card */

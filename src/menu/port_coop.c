@@ -55,13 +55,13 @@ static s32 sCoPickBack, sCoPickTested, sCoFromMe; /* back from "Mi personaje": o
 /* The game's 16-bit text for the message box, from UTF-8. */
 static u16 *Co_Box(const char *utf8) {
     static u16 buf[2][224];
-    static const char *last;
+    static char last[512]; /* (the text itself: a buffer written again each frame keeps its address) */
     static s32 cur;
     const u8 *s = (const u8 *)utf8;
     s32 n = 1;
 
-    if (utf8 == last) return buf[cur];
-    last = utf8;
+    if (!strcmp(utf8, last)) return buf[cur];
+    Ps_Copy(last, (char *)utf8, 512);
     cur = !cur;
     buf[cur][0] = 0xFEFF;
     while (*s && n < 222) {
@@ -205,7 +205,13 @@ extern s32 PortCoop_Money(void), PortCoop_SpendMoney(s32 n);
 extern void PortRpg_TitleBought(int i), PortRpg_SetTitle(int i);
 extern int PortRpg_TitleCount(void), PortRpg_TitlePrice(int), PortRpg_TitleUnlocked(int);
 extern const char *PortRpg_TitleName(int);
-#define CO_SHOP_BASE 3
+extern int PortRpg_Abilities(void);
+extern void PortRpg_AbilityBought(int bit);
+#define CO_SHOP_BASE 5
+extern int PortAch_Count(void), PortAch_Done(int), PortAch_Claimed(int), PortAch_Claim(int), PortAch_Reward(int), PortAch_ReadyCount(void);
+extern void PortAch_Progress(int i, int *now, int *goal);
+extern const char *PortAch_Name(int);
+extern int PortMis_Streak(void), PortMis_StreakBonus(void);
 static s32 sShopTitle[16], sShopTitles;
 static void Co_ShopBuild(void) {
     s32 t;
@@ -213,33 +219,54 @@ static void Co_ShopBuild(void) {
     for (t = 0; t < PortRpg_TitleCount() && sShopTitles < 16; t++) if (PortRpg_TitlePrice(t) > 0) sShopTitle[sShopTitles++] = t;
 }
 static s32 Co_ShopCount(void) { return CO_SHOP_BASE + sShopTitles; }
-static s32 Co_ShopPrice(s32 i) { return i == 0 || i == 1 ? 4000 : i == 2 ? 6000 : PortRpg_TitlePrice(sShopTitle[i - CO_SHOP_BASE]); }
-static s32 Co_ShopOwned(s32 i) { return i >= CO_SHOP_BASE && PortRpg_TitleUnlocked(sShopTitle[i - CO_SHOP_BASE]); }
+static s32 Co_ShopPrice(s32 i) { return i == 0 || i == 1 ? 4000 : i == 2 ? 6000 : i == 3 ? 25000 : i == 4 ? 35000 : PortRpg_TitlePrice(sShopTitle[i - CO_SHOP_BASE]); }
+static s32 Co_ShopOwned(s32 i) { return i == 3 ? (PortRpg_Abilities() & 1) != 0 : i == 4 ? (PortRpg_Abilities() & 2) != 0 : i >= CO_SHOP_BASE && PortRpg_TitleUnlocked(sShopTitle[i - CO_SHOP_BASE]); }
+static char sCoNote[160];
+static s32 sCoNoteFrames;
+static void Co_Note(const char *text) { Ps_Copy(sCoNote, (char *)text, 160); sCoNoteFrames = 200; }
+extern const char *PortMis_LastClaim(void);
 static void Co_ShopBuy(s32 i) {
     if (Co_ShopOwned(i) || !PortCoop_SpendMoney(Co_ShopPrice(i))) { Snd_PlaySe(1, 2); return; }
     if (i == 0) Port_SettingSave("coop_cap_exp", PortItem_Count(0) + 1);
     else if (i == 1) Port_SettingSave("coop_cap_zp", PortItem_Count(1) + 1);
     else if (i == 2) Port_SettingSave("coop_mi_xp", Port_Setting("coop_mi_xp", 0) + 250);
+    else if (i == 3) PortRpg_AbilityBought(1);
+    else if (i == 4) PortRpg_AbilityBought(2);
     else { PortRpg_TitleBought(sShopTitle[i - CO_SHOP_BASE]); PortRpg_SetTitle(sShopTitle[i - CO_SHOP_BASE]); }
     Port_SettingsWrite();
     Snd_PlaySe(1, 1);
+    {   char t[160];
+        if (i == 0 || i == 1) sprintf(t, "Comprado: c\303\241psula %s. Tienes %d.", i ? "Z" : "de EXP", PortItem_Count(i));
+        else if (i == 2) sprintf(t, "+250 EXP. Mi personaje: nivel %d.", PortRpg_MyLevel());
+        else if (i == 3 || i == 4) sprintf(t, "\302\241Habilidad conseguida! Ya vale en tu pr\303\263ximo combate.");
+        else sprintf(t, "T\303\255tulo conseguido y puesto: %.60s", PortRpg_TitleName(sShopTitle[i - CO_SHOP_BASE]));
+        Co_Note(t);
+    }
 }
 static void Co_MissionsUpdate(void) { /* act: 0 the missions, 2 the shop, 1 the statistics (left / right in that order) */
     Pad *pad = &gPad[0];
 
-    Ps_Prompt(0, sCo->act == 1 ? "Volver" : sCo->act == 2 ? "Comprar" : "Reclamar");
+    Ps_Prompt(0, sCo->act == 1 ? "Volver" : sCo->act == 2 ? "Comprar" : "Reclamar"); /* (the achievements: claim too) */
     Ps_Prompt(2, "Volver");
     if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT | PADG_L1 | PADG_R1)) { /* the tabs */
-        static const s32 next[3] = {2, 0, 1}, prev[3] = {1, 2, 0};
-        sCo->act = (pad->gamePressed & (PADG_RIGHT | PADG_R1)) ? next[sCo->act % 3] : prev[sCo->act % 3];
-        sCo->cur = 0; Co_ShopBuild(); Snd_PlaySe(1, 0);
+        static const s32 next[4] = {2, 0, 3, 1}, prev[4] = {1, 3, 0, 2};
+        sCo->act = (pad->gamePressed & (PADG_RIGHT | PADG_R1)) ? next[sCo->act % 4] : prev[sCo->act % 4];
+        sCo->cur = sCo->top = 0; Co_ShopBuild(); Snd_PlaySe(1, 0);
     }
     if (sCo->act == 0) Ps_Move(&sCo->cur, 6);
-    else if (sCo->act == 2) Ps_Move(&sCo->cur, Co_ShopCount());
+    else if (sCo->act == 2 || sCo->act == 3) {
+        s32 n = sCo->act == 2 ? Co_ShopCount() : PortAch_Count();
+        Ps_Move(&sCo->cur, n);
+        if (sCo->cur < sCo->top) sCo->top = sCo->cur;
+        if (sCo->cur >= sCo->top + 8) sCo->top = sCo->cur - 7;
+    }
     if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sCo->act == 0) {
-        if (PortMis_Claim(sCo->cur)) Snd_PlaySe(1, 1); else Snd_PlaySe(1, 2);
+        if (PortMis_Claim(sCo->cur)) { Snd_PlaySe(1, 1); Co_Note(PortMis_LastClaim()); } else Snd_PlaySe(1, 2);
     } else if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sCo->act == 2) {
         Co_ShopBuy(sCo->cur);
+    } else if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sCo->act == 3) {
+        if (PortAch_Claim(sCo->cur)) { char t[160]; sprintf(t, "\302\241Logro conseguido! +%d Puntos Z", PortAch_Reward(sCo->cur)); Co_Note(t); Snd_PlaySe(1, 1); }
+        else Snd_PlaySe(1, 2);
     } else if ((pad->gamePressed & PADG_TRIANGLE) || ((pad->gamePressed & PADG_CROSS) && sCo->act == 1)) {
         Snd_PlaySe(1, 2);
         sCo->cur = sCoFromMe ? 4 : 0; sCo->act = 0;
@@ -268,12 +295,13 @@ static s32 Co_SagaOf(s32 chapter) {
     for (s = 0; s < sSagaN; s++) if (chapter >= sSagaFirst[s] && chapter < sSagaFirst[s] + sSagaLen[s]) return s;
     return 0;
 }
+static s32 Co_SagaOpen(s32 s) { s32 i; for (i = 0; i < sSagaLen[s]; i++) if (PortCoop_Unlocked(sSagaFirst[s] + i)) return 1; return 0; }
 static s32 Co_SagaDone(s32 s) { s32 i, d = 0; for (i = 0; i < sSagaLen[s]; i++) d += PortCoop_Done(sSagaFirst[s] + i) != 0; return d; }
 static void Co_MapOpen(void) {
     s32 s;
     Co_SagasBuild();
     sCoSaga = 0;
-    for (s = 0; s < sSagaN; s++) if (PortCoop_Unlocked(sSagaFirst[s]) && Co_SagaDone(s) < sSagaLen[s]) { sCoSaga = s; break; }
+    for (s = 0; s < sSagaN; s++) if (Co_SagaOpen(s) && Co_SagaDone(s) < sSagaLen[s]) { sCoSaga = s; break; }
     Co_SetPage(CO_MAP);
 }
 static void Co_ListOpen(s32 saga) { /* on the first chapter of the saga still to win */
@@ -295,7 +323,7 @@ static void Co_MapUpdate(void) {
         if ((pad->gameRepeat & (PADG_LEFT | PADG_UP)) && sCoSaga > 0) { sCoSaga--; Snd_PlaySe(1, 0); }
     }
     if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sSagaN > 0) {
-        if (PortCoop_Unlocked(sSagaFirst[sCoSaga])) { Snd_PlaySe(1, 1); Co_ListOpen(sCoSaga); }
+        if (Co_SagaOpen(sCoSaga)) { Snd_PlaySe(1, 1); Co_ListOpen(sCoSaga); }
         else Snd_PlaySe(1, 2);
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
@@ -511,21 +539,37 @@ static const char *Co_RewardsBox(void) {
 }
 
 /* The tabs of "Misiones y tienda": the missions, the shop, the statistics (act 0, 2, 1). */
+static void Co_NoteDraw(void) {
+    if (sCoNoteFrames <= 0) return;
+    sCoNoteFrames--;
+    Ps_Pill(TBO_KIT_SEL, 40.0f, 300.0f, 470.0f, 326.0f, sCoNoteFrames > 20 ? 0x80 : sCoNoteFrames * 6);
+    Ps_Align(1);
+    Ps_Text(255.0f, Ps_TextTop(313.0f, 0.5f), sCoNote, 0.5f, 420.0f, 1);
+    Ps_Align(0);
+}
 static void Co_Tabs(f32 slide) {
-    static const char *names[3] = {"Misiones", "Tienda", "Estad\303\255sticas"};
-    static const s32 acts[3] = {0, 2, 1};
+    static const char *names[4] = {"Misiones", "Tienda", "Logros", "Estad\303\255sticas"};
+    static const s32 acts[4] = {0, 2, 3, 1};
     s32 k;
-    for (k = 0; k < 3; k++) {
-        f32 x0 = 228.0f + slide + 88.0f * k;
+    for (k = 0; k < 4; k++) {
+        f32 x0 = 168.0f + slide + 76.0f * k;
         s32 on = sCo->act == acts[k];
-        Ps_Pill(on ? TBO_KIT_SEL : TBO_KIT_BAR, x0, 22.0f, x0 + 82.0f, 46.0f, on ? 0x80 : 0x60);
+        Ps_Pill(on ? TBO_KIT_SEL : TBO_KIT_BAR, x0, 22.0f, x0 + 72.0f, 46.0f, on ? 0x80 : 0x60);
         Ps_Align(1);
-        Ps_Text(x0 + 41.0f, Ps_TextTop(34.0f, 0.44f), (char *)names[k], 0.44f, 78.0f, on ? 1 : 4);
+        Ps_Text(x0 + 36.0f, Ps_TextTop(34.0f, 0.42f), (char *)names[k], 0.42f, 68.0f, on ? 1 : 4);
         Ps_Align(0);
     }
     Ps_Align(1);
-    Ps_Text(228.0f + slide + 132.0f, 48.0f, "<  izquierda / derecha  >", 0.32f, 260.0f, 4);
+    Ps_Text(168.0f + slide + 152.0f, 48.0f, "<  izquierda / derecha  >", 0.32f, 260.0f, 4);
     Ps_Align(0);
+    Co_NoteDraw(); /* (what was just won or bought) */
+}
+
+extern const char *PortCoop_ChSecret(int);
+static const char *Co_SecretBox(s32 c) {
+    static char text[160];
+    sprintf(text, "Cap\303\255tulo secreto: se abre al sacar nota S o Z en todos los cap\303\255tulos de la %.60s.", PortCoop_ChSecret(c));
+    return text;
 }
 
 static void Co_Draw(void) {
@@ -548,6 +592,7 @@ static void Co_Draw(void) {
             char mis[40];
             s32 k, ready = 0;
             for (k = 0; k < 6; k++) if (!PortMis_Claimed(k) && PortMis_Progress(k) >= PortMis_Goal(k)) ready++;
+            ready += PortAch_ReadyCount();
             if (ready) sprintf(mis, "\302\241%d para reclamar!", ready); else mis[0] = 0;
             Co_Row(60.0f + slide, 380.0f + slide, 132.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
             Co_Row(60.0f + slide, 380.0f + slide, 160.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
@@ -600,25 +645,53 @@ static void Co_Draw(void) {
         box = "Elige qui\303\251n quieres ser. En la selecci\303\263n de personaje de la cooperativa saldr\303\241 una casilla m\303\241s, "
               "al final, con \303\251l: es tu personaje, con tu nivel. Su casilla normal sigue siendo el original.";
     } else if (sCo->page == CO_MISSIONS && sCo->act == 2) {
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Tienda", 1.3f, 170.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Tienda", 1.2f, 110.0f, 0x80);
         Co_Tabs(slide);
-        sprintf(line, "Tus Puntos Z: %d     C\303\241psulas: %d EXP, %d Z", PortCoop_Money(), PortItem_Count(0), PortItem_Count(1));
-        Ps_Text(50.0f + slide, 66.0f, line, 0.5f, 410.0f, 1);
+        sprintf(line, "Tus Puntos Z: %d   C\303\241psulas: %d EXP, %d Z   Nv %d", PortCoop_Money(), PortItem_Count(0), PortItem_Count(1), PortRpg_MyLevel());
+        Ps_Text(50.0f + slide, 60.0f, line, 0.46f, 410.0f, 1);
+        {   extern const char *PortRpg_XpText(void);
+            f32 x0 = 50.0f + slide, x1 = 330.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
+            Ps_Rect(x0, 78.0f, x1, 82.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
+            Ps_Rect(x0, 78.0f, fill, 82.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+            Ps_Text(x1 + 8.0f, Ps_TextTop(80.0f, 0.36f), (char *)PortRpg_XpText(), 0.36f, 110.0f, 3);
+        }
         if (sShopTitles == 0) Co_ShopBuild();
-        for (i = 0; i < Co_ShopCount() && i < 9; i++) {
+        for (i = sCo->top; i < Co_ShopCount() && i < sCo->top + 8; i++) {
             char what[80], value[40];
             if (i == 0) sprintf(what, "C\303\241psula de EXP (x2 EXP un combate)");
             else if (i == 1) sprintf(what, "C\303\241psula Z (x2 Puntos Z un combate)");
             else if (i == 2) sprintf(what, "Entrenamiento: +250 EXP");
+            else if (i == 3) sprintf(what, "Habilidad: empiezas con 1 barra de Ki m\303\241s");
+            else if (i == 4) sprintf(what, "Habilidad: cada golpe recupera Ki");
             else sprintf(what, "T\303\255tulo: %.50s", PortRpg_TitleName(sShopTitle[i - CO_SHOP_BASE]));
             if (Co_ShopOwned(i)) sprintf(value, "Comprado"); else sprintf(value, "%d Z", Co_ShopPrice(i));
-            Co_Row(40.0f + slide, 420.0f + slide, 88.0f + 26.0f * i, what, value, i == sCo->cur,
+            Co_Row(40.0f + slide, 420.0f + slide, 88.0f + 26.0f * (i - sCo->top), what, value, i == sCo->cur,
                    Co_ShopOwned(i) ? 4 : PortCoop_Money() >= Co_ShopPrice(i) ? 1 : 4);
         }
-        box = "X: comprar. Los Puntos Z son los de tu partida (los mismos del modo historia). Izquierda/derecha: misiones, estad\303\255sticas.";
+        if (sCo->top > 0) Ps_Text(220.0f + slide, 76.0f, "...", 0.5f, 40.0f, 4);
+        if (sCo->top + 8 < Co_ShopCount()) Ps_Text(220.0f + slide, 88.0f + 26.0f * 8, "...", 0.5f, 40.0f, 4);
+        box = sCo->cur == 3 || sCo->cur == 4 ? "Las habilidades son para siempre y valen en la cooperativa con la casilla de tu personaje."
+            : "X: comprar. Los Puntos Z son los de tu partida (los mismos del modo historia).";
+    } else if (sCo->page == CO_MISSIONS && sCo->act == 3) {
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.2f), "Logros", 1.2f, 110.0f, 0x80);
+        Co_Tabs(slide);
+        for (i = sCo->top; i < PortAch_Count() && i < sCo->top + 8; i++) {
+            char value[48];
+            s32 now, goal;
+            PortAch_Progress(i, &now, &goal);
+            if (PortAch_Claimed(i)) sprintf(value, "Conseguido");
+            else if (now >= goal) sprintf(value, "\302\241Reclamar %d Z!", PortAch_Reward(i));
+            else if (goal > 1) sprintf(value, "%d / %d", now, goal);
+            else sprintf(value, "%d Z", PortAch_Reward(i));
+            Co_Row(40.0f + slide, 420.0f + slide, 74.0f + 28.0f * (i - sCo->top), (char *)PortAch_Name(i), value, i == sCo->cur,
+                   PortAch_Claimed(i) ? 5 : now >= goal ? 1 : 4);
+        }
+        if (sCo->top + 8 < PortAch_Count()) Ps_Text(220.0f + slide, 74.0f + 28.0f * 8, "...", 0.5f, 40.0f, 4);
+        if (sCo->top > 0) Ps_Text(220.0f + slide, 62.0f, "...", 0.5f, 40.0f, 4);
+        box = "Logros de la cooperativa: cada uno se reclama una vez con X. Algunos dan t\303\255tulos (\303\201ngel guardi\303\241n, Maestro de la historia, Guerrero secreto).";
     } else if (sCo->page == CO_MISSIONS && !sCo->act) {
         char head[80];
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.3f, 170.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.2f, 110.0f, 0x80);
         Co_Tabs(slide);
         for (i = 0; i < 6; i++) {
             char value[40];
@@ -634,9 +707,13 @@ static void Co_Draw(void) {
             Co_Row(40.0f + slide, 420.0f + slide, y, (char *)PortMis_Text(i), value, i == sCo->cur,
                    PortMis_Claimed(i) ? 4 : PortMis_Progress(i) >= PortMis_Goal(i) ? 1 : 3);
         }
-        sprintf(line, "C\303\241psulas: %d de EXP, %d de Puntos Z (se usan solas en el siguiente combate)", PortItem_Count(0), PortItem_Count(1));
+        if (PortMis_Streak() > 0)
+            sprintf(line, "Racha: %d d\303\255a%s seguido%s%s   \302\267   C\303\241psulas: %d EXP, %d Z", PortMis_Streak(), PortMis_Streak() == 1 ? "" : "s",
+                    PortMis_Streak() == 1 ? "" : "s", PortMis_StreakBonus() ? " (+Puntos Z)" : "", PortItem_Count(0), PortItem_Count(1));
+        else sprintf(line, "C\303\241psulas: %d de EXP, %d de Puntos Z (se usan solas en el siguiente combate)", PortItem_Count(0), PortItem_Count(1));
         Ps_Text(50.0f + slide, 302.0f, line, 0.42f, 400.0f, 0);
-        sprintf(line, "Premio: %s. X: reclamar. Izquierda/derecha: tienda, estad\303\255sticas.", PortMis_RewardText(sCo->cur));
+        sprintf(line, "Premio: %s%s. X: reclamar. Reclama una misi\303\263n cada d\303\255a para mantener la racha (hasta +50%% Puntos Z).",
+                PortMis_RewardText(sCo->cur), PortMis_StreakBonus() ? " y la racha" : "");
         box = line;
     } else if (sCo->page == CO_MISSIONS) {
         static const char *names[11] = {"Combates jugados", "Victorias", "Con Mi personaje", "Da\303\261o total a los rivales",
@@ -646,9 +723,9 @@ static void Co_Draw(void) {
         char mineName[48];
         PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
         sprintf(line, "Estad\303\255sticas de %.40s  (Nv %d)", mineName, PortRpg_MyLevel());
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), "Estad\303\255sticas", 1.1f, 170.0f, 0x80);
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), "Estad\303\255sticas", 0.9f, 110.0f, 0x80);
         Co_Tabs(slide);
-        Ps_Text(50.0f + slide, 52.0f, line + 14, 0.42f, 170.0f, 3); /* (who: "de <name> (Nv X)") */
+        Ps_Text(50.0f + slide, 52.0f, line + 14, 0.42f, 110.0f, 3); /* (who: "de <name> (Nv X)") */
         for (i = 0; i < 10; i++) {
             char value[40];
             s32 k = order[i];
@@ -666,7 +743,7 @@ static void Co_Draw(void) {
         for (s = 0; s < sSagaN; s++) { /* the path first, under the sagas */
             s32 r = s / 3, c = (r & 1) ? 2 - s % 3 : s % 3, r2, c2;
             f32 x = 40.0f + slide + c * 156.0f + nw * 0.5f, y = 76.0f + r * step + nh * 0.5f, x2, y2;
-            u32 col = PortCoop_Unlocked(sSagaFirst[s]) ? Ps_Rgba(255, 213, 91, 0x70) : Ps_Rgba(120, 120, 120, 0x50);
+            u32 col = Co_SagaOpen(s) ? Ps_Rgba(255, 213, 91, 0x70) : Ps_Rgba(120, 120, 120, 0x50);
             if (s + 1 >= sSagaN) break;
             r2 = (s + 1) / 3; c2 = (r2 & 1) ? 2 - (s + 1) % 3 : (s + 1) % 3;
             x2 = 40.0f + slide + c2 * 156.0f + nw * 0.5f; y2 = 76.0f + r2 * step + nh * 0.5f;
@@ -674,7 +751,7 @@ static void Co_Draw(void) {
             else Ps_Rect(x - 2.0f, y, x + 2.0f, y2, col, col);
         }
         for (s = 0; s < sSagaN; s++) {
-            s32 r = s / 3, c = (r & 1) ? 2 - s % 3 : s % 3, open = PortCoop_Unlocked(sSagaFirst[s]), done = Co_SagaDone(s);
+            s32 r = s / 3, c = (r & 1) ? 2 - s % 3 : s % 3, open = Co_SagaOpen(s), done = Co_SagaDone(s);
             f32 x0 = 40.0f + slide + c * 156.0f, y0 = 76.0f + r * step;
             const char *name = PortCoop_ChSaga(sSagaFirst[s]);
             char prog[48];
@@ -691,7 +768,7 @@ static void Co_Draw(void) {
             Ps_Align(0);
         }
         if (sSagaN > 0) {
-            s32 open = PortCoop_Unlocked(sSagaFirst[sCoSaga]);
+            s32 open = Co_SagaOpen(sCoSaga);
             sprintf(line, open ? "%.40s: %d cap\303\255tulos, %d superados. X: entrar. Cuadrado: volver a leer los cap\303\255tulos."
                                : "%.40s: bloqueada. Superad la saga anterior para abrirla.",
                     PortCoop_ChSaga(sSagaFirst[sCoSaga]), sSagaLen[sCoSaga], Co_SagaDone(sCoSaga));
@@ -771,7 +848,8 @@ static void Co_Draw(void) {
                 char done[40], *value;
                 sprintf(done, PortCoop_ChGrade(i)[0] ? "Nota %s" : "Completado", PortCoop_ChGrade(i));
                 if (PortCoop_ChBestDiff(i) >= 2) Ps_Cat(done, PortCoop_ChBestDiff(i) >= 3 ? " (Extremo)" : " (Dif\303\255cil)", 40);
-                value = PortCoop_Done(i) ? done : open ? (char *)PortCoop_ChSaga(i) : "Bloqueado";
+                {   extern const char *PortCoop_ChSecret(int);
+                    value = PortCoop_Done(i) ? done : open ? (char *)PortCoop_ChSaga(i) : PortCoop_ChSecret(i)[0] ? "Secreto" : "Bloqueado"; }
                 Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
                        i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
             }
@@ -779,6 +857,7 @@ static void Co_Draw(void) {
             if (sCo->top + CO_ROWS < end) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
             box = PortCoop_Unlocked(sCo->cur)
                 ? "Elige un cap\303\255tulo. Cada uno que super\303\251is desbloquea el siguiente. Tri\303\241ngulo: volver al mapa."
+                : PortCoop_ChSecret(sCo->cur)[0] ? Co_SecretBox(sCo->cur)
                 : "Bloqueado: primero ten\303\251is que superar el cap\303\255tulo anterior.";
         }
     } else {

@@ -237,6 +237,14 @@ static s32 TeamSel_TagCoopConfirm(s32 seat){
     s32 ui=CoopUiTeam(seat)<2,team=ui?CoopUiTeam(seat):0,slot=CoopUiIndex(seat)%5,i,j,index=0,id,color;
     TeamSelSide *side=gTeamSel->side[team];TsMember solo,*m=ui?&side->member[slot]:&solo;
     id=PortCoop_FoeChara(Port_TagTeamIndex(seat));
+    if(Port_TagTeam(seat)==0){ /* a CPU partner of the players: any fighter of the grid, at random */
+        s32 cells[TS_CELL_MAX],n=0,k;
+        static s32 seeded;if(!seeded){seeded=1;srand(Port_TagMenuMillis());}
+        for(k=0;k<gTeamSel->masterCount[team];++k){s32 cid=gTeamSel->cells[team][k].id;
+            if(TeamSel_IsRealChara(cid)&&ChrGrid_IsSelectable(gTeamSel->cells[team],k)&&!TagCoop_OnMine(k%TS_COLS,k/TS_COLS))cells[n++]=k;}
+        if(n>0)id=gTeamSel->cells[team][cells[rand()%n]].id;
+        fprintf(stderr,"coop: CPU partner seat=%d gets fighter %d at random\n",seat,id);
+    }
     if(id<0)return 0;
     for(i=0;i<gTeamSel->masterCount[team];++i){ /* its cell, for the grid's cursor and face */
         TsCell *c=&gTeamSel->cells[team][i];s32 found=c->id==id;

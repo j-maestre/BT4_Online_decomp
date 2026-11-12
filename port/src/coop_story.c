@@ -29,7 +29,7 @@
 typedef struct PortCoopFoe { int chara, costume, level, health, behind, transform; char name[40]; } PortCoopFoe;
 #define COOP_DIALOG 8      /* lines of a chapter's conversation */
 typedef struct PortCoopChapter {
-    char id[32], saga[48], title[64], pair[64];
+    char id[32], saga[48], title[64], pair[64], secret[48];
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
     int foes, reserves, dialogs;
@@ -141,6 +141,7 @@ int PortCoop_Load(void) {
         memset(c, 0, sizeof(*c));
         field_str(L, "id", c->id, sizeof(c->id));
         field_str(L, "saga", c->saga, sizeof(c->saga));
+        field_str(L, "secreto", c->secret, sizeof(c->secret));
         field_str(L, "titulo", c->title, sizeof(c->title));
         field_str(L, "pareja", c->pair, sizeof(c->pair));
         field_str(L, "intro", c->intro, sizeof(c->intro));
@@ -389,19 +390,23 @@ const char *PortRpg_Name(void) {
     return name;
 }
 void PortRpg_SetName(const char *name) { Port_SettingTextSave("coop_mi_nombre", name); Port_SettingsWrite(); }
-static const struct { const char *name; int level, price; } kTitles[] = {
-    {"Novato", 1, 0}, {"Guerrero Z", 10, 0}, {"Guerrero de élite", 25, 0}, {"Súper Guerrero", 40, 0},
-    {"Maestro de las artes marciales", 60, 0}, {"Leyenda", 80, 0}, {"Dios de la Destrucción", 100, 0},
-    {"Héroe de Namek", 0, 15000}, {"Príncipe de los Saiyajin", 0, 30000}, {"Patrulla del Tiempo", 0, 30000},
-    {"Rey de la Galaxia del Norte", 0, 50000}, {"Campeón del Torneo", 0, 80000}};
+static const struct { const char *name; int level, price, ach; } kTitles[] = {
+    {"Novato", 1, 0, 0}, {"Guerrero Z", 10, 0, 0}, {"Guerrero de élite", 25, 0, 0}, {"Súper Guerrero", 40, 0, 0},
+    {"Maestro de las artes marciales", 60, 0, 0}, {"Leyenda", 80, 0, 0}, {"Dios de la Destrucción", 100, 0, 0},
+    {"Héroe de Namek", 0, 15000, 0}, {"Príncipe de los Saiyajin", 0, 30000, 0}, {"Patrulla del Tiempo", 0, 30000, 0},
+    {"Rey de la Galaxia del Norte", 0, 50000, 0}, {"Campeón del Torneo", 0, 80000, 0},
+    {"Ángel guardián", 0, 0, 4}, {"Maestro de la historia", 0, 0, 9}, {"Guerrero secreto", 0, 0, 12}};
+int PortAch_Done(int i);
 #define RPG_TITLES ((int)(sizeof(kTitles) / sizeof(kTitles[0])))
 int PortRpg_TitleCount(void) { return RPG_TITLES; }
 const char *PortRpg_TitleName(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].name : ""; }
 int PortRpg_TitlePrice(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].price : 0; }
 int PortRpg_TitleLevel(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].level : 0; }
+int PortRpg_TitleAch(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].ach : 0; }
 int PortRpg_TitleUnlocked(int i) {
     if (i < 0 || i >= RPG_TITLES) return 0;
     if (kTitles[i].price) return (Port_Setting("coop_titulos_comprados", 0) >> i) & 1;
+    if (kTitles[i].ach) return PortAch_Done(kTitles[i].ach - 1);
     return PortRpg_MyLevel() >= kTitles[i].level;
 }
 int PortRpg_Title(void) { int t = Port_Setting("coop_titulo", 0); return PortRpg_TitleUnlocked(t) ? t : 0; }
@@ -412,7 +417,9 @@ void PortRpg_TitleBought(int i) {
     Port_SettingSave("coop_titulos_comprados", Port_Setting("coop_titulos_comprados", 0) | (1 << i));
     Port_SettingsWrite();
 }
-static void rpg_pick_points(void) { int w; for (w = 0; w < 4; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; }
+static int sPickedHab;
+int PortRpg_Abilities(void);
+static void rpg_pick_points(void) { int w; for (w = 0; w < 4; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; sPickedHab = sUsingMine ? PortRpg_Abilities() : 0; }
 
 static void grade_key(char *out, int cap, int i) { done_key(out, cap, i); memcpy(out, "coop_nota_", 10); }
 /* The best grade of chapter i: "" without one. */
@@ -545,6 +552,11 @@ int PortMis_HoursLeft(void) { time_t now = time(NULL); struct tm *t = localtime(
 int PortMis_DaysLeft(void) { return 7 - (int)((mis_day() + 3) % 7); }
 int PortItem_Count(int which) { return Port_Setting(which ? "coop_cap_zp" : "coop_cap_exp", 0); }
 /* Claims a mission done: 1 when it paid now (its Z points through src/menu/menu_p_b.c, into the save). */
+static void mis_streak_claimed(void);
+int PortMis_StreakBonus(void);
+/* what the last mission claimed gave, for the co-op screen's notice */
+static char sClaimText[128];
+const char *PortMis_LastClaim(void) { return sClaimText; }
 int PortMis_Claim(int k) {
     extern void PortCoop_AddMoney(int n);
     char key[32];
@@ -556,8 +568,14 @@ int PortMis_Claim(int k) {
     Port_SettingSave("coop_mi_xp", Port_Setting("coop_mi_xp", 0) + xp);
     if (ce) Port_SettingSave("coop_cap_exp", PortItem_Count(0) + ce);
     if (cz) Port_SettingSave("coop_cap_zp", PortItem_Count(1) + cz);
+    mis_streak_claimed();
+    zp = zp * (100 + PortMis_StreakBonus()) / 100; /* (the daily streak) */
     Port_SettingsWrite();
     PortCoop_AddMoney(zp);
+    {   int n = snprintf(sClaimText, sizeof(sClaimText), "¡Conseguido! +%d Puntos Z, +%d EXP", zp, xp);
+        if (ce && n < (int)sizeof(sClaimText)) n += snprintf(sClaimText + n, sizeof(sClaimText) - n, ", +1 cápsula EXP");
+        if (cz && n < (int)sizeof(sClaimText)) snprintf(sClaimText + n, sizeof(sClaimText) - n, ", +1 cápsula Z");
+    }
     fprintf(stderr, "coop: mission %d claimed: %d Z points, %d EXP, capsules %d/%d\n", k, zp, xp, ce, cz);
     return 1;
 }
@@ -604,6 +622,87 @@ static void rpg_count(int won, int grade, int share, int revives, int downs, int
     mis_add(MT_NODOWN, won && downs == 0);
     mis_add(MT_MINE, sUsingMine);
 }
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Achievements (src/menu/port_coop.c, the "Logros" tab): from the statistics, the levels and the chapters; each
+ * claimed once for Z points (coop_logros_ok, a bit each); some give a title.
+ * ---------------------------------------------------------------------------------------------------------------- */
+static int saga_perfect(const char *saga) { /* every chapter of that saga with S or Z */
+    int j, n = 0;
+    char key[64];
+    for (j = 0; j < sCount; j++) {
+        if (strcmp(sCh[j].saga, saga)) continue;
+        grade_key(key, sizeof(key), j);
+        if (Port_Setting(key, 0) < 6) return 0;
+        n++;
+    }
+    return n > 0;
+}
+static const struct { const char *name; int zp; } kAch[] = {
+    {"Primer combate", 1000}, {"10 victorias", 3000}, {"50 victorias", 10000},
+    {"Ángel guardián: 50 compañeros revividos", 8000}, {"Nivel 25", 5000}, {"Nivel 50", 15000},
+    {"Una nota Z", 5000}, {"Saga perfecta: S o Z en toda una saga", 10000},
+    {"Historia completa: todos los capítulos normales", 20000}, {"5 victorias en Extremo", 15000},
+    {"Modo infinito: 30 oleadas", 10000}, {"Un capítulo secreto superado", 15000}};
+#define ACH_COUNT ((int)(sizeof(kAch) / sizeof(kAch[0])))
+int PortAch_Count(void) { return ACH_COUNT; }
+const char *PortAch_Name(int i) { return i >= 0 && i < ACH_COUNT ? kAch[i].name : ""; }
+int PortAch_Reward(int i) { return i >= 0 && i < ACH_COUNT ? kAch[i].zp : 0; }
+/* progress towards achievement i: *now of *goal */
+void PortAch_Progress(int i, int *now, int *goal) {
+    int j, n = 0, all = 0;
+    *now = 0; *goal = 1;
+    switch (i) {
+    case 0: *now = PortStat(ST_BATTLES); break;
+    case 1: *now = PortStat(ST_WINS); *goal = 10; break;
+    case 2: *now = PortStat(ST_WINS); *goal = 50; break;
+    case 3: *now = PortStat(ST_REVIVES); *goal = 50; break;
+    case 4: *now = PortRpg_MyLevel(); *goal = 25; break;
+    case 5: *now = PortRpg_MyLevel(); *goal = 50; break;
+    case 6: *now = PortStat(ST_BEST) >= 7; break;
+    case 7: for (j = 0; j < sCount; j++) if (!sCh[j].secret[0] && saga_perfect(sCh[j].saga)) { *now = 1; break; } break;
+    case 8: for (j = 0; j < sCount; j++) if (!sCh[j].secret[0]) { all++; n += PortCoop_Done(j) != 0; } *now = n; *goal = all > 0 ? all : 1; break;
+    case 9: *now = PortStat(ST_EXTREME); *goal = 5; break;
+    case 10: *now = PortStat(ST_WAVES); *goal = 30; break;
+    case 11: for (j = 0; j < sCount; j++) if (sCh[j].secret[0] && PortCoop_Done(j)) { *now = 1; break; } break;
+    }
+    if (*now > *goal) *now = *goal;
+}
+int PortAch_Done(int i) { int now, goal; PortAch_Progress(i, &now, &goal); return now >= goal; }
+int PortAch_Claimed(int i) { return i >= 0 && i < ACH_COUNT && ((Port_Setting("coop_logros_ok", 0) >> i) & 1); }
+int PortAch_Claim(int i) {
+    extern void PortCoop_AddMoney(int n);
+    if (i < 0 || i >= ACH_COUNT || PortAch_Claimed(i) || !PortAch_Done(i)) return 0;
+    Port_SettingSave("coop_logros_ok", Port_Setting("coop_logros_ok", 0) | (1 << i));
+    Port_SettingsWrite();
+    PortCoop_AddMoney(kAch[i].zp);
+    return 1;
+}
+int PortAch_ReadyCount(void) { int i, n = 0; for (i = 0; i < ACH_COUNT; i++) n += PortAch_Done(i) && !PortAch_Claimed(i); return n; }
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * The daily streak: days in a row with a mission claimed; each day after the first, +10% Z points on the missions
+ * (at most +50%). coop_racha_dia (days), coop_racha_ultimo (the day number).
+ * ---------------------------------------------------------------------------------------------------------------- */
+int PortMis_Streak(void) {
+    long last = Port_Setting("coop_racha_ultimo", -10), today = mis_day();
+    return last == today || last == today - 1 ? Port_Setting("coop_racha_dia", 0) : 0;
+}
+int PortMis_StreakBonus(void) { int s = PortMis_Streak(); return s > 1 ? (s - 1 > 5 ? 50 : (s - 1) * 10) : 0; }
+static void mis_streak_claimed(void) {
+    long last = Port_Setting("coop_racha_ultimo", -10), today = mis_day();
+    if (last == today) return;
+    Port_SettingSave("coop_racha_dia", last == today - 1 ? Port_Setting("coop_racha_dia", 0) + 1 : 1);
+    Port_SettingSave("coop_racha_ultimo", (int)today);
+}
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Ki abilities, bought in the shop (coop_habilidades, a bit each): 1 one more ki bar at the start, 2 ki back with
+ * every hit dealt. Taken when the cell is picked and told to the partner with the level ("#lv"), as the points.
+ * ---------------------------------------------------------------------------------------------------------------- */
+int PortRpg_Abilities(void) { return Port_Setting("coop_habilidades", 0) & 3; }
+void PortRpg_AbilityBought(int bit) { Port_SettingSave("coop_habilidades", PortRpg_Abilities() | bit); Port_SettingsWrite(); }
+int PortRpg_PickAbilities(void) { return sUsingMine ? sPickedHab : 0; }
 
 static void rpg_reward(int won) {
     extern int TagBattle_LocalActor(void), CoopLv_DamageShareMille(int), CoopLv_Revives(int), CoopLv_Downs(int);
@@ -736,4 +835,9 @@ int PortCoop_ChDialogCount(int i) { return ch(i) ? ch(i)->dialogs : 0; }
 const char *PortCoop_ChDialogWho(int i, int k) { return ch(i) && k >= 0 && k < ch(i)->dialogs ? ch(i)->dlgWho[k] : ""; }
 const char *PortCoop_ChDialogText(int i, int k) { return ch(i) && k >= 0 && k < ch(i)->dialogs ? ch(i)->dlgText[k] : ""; }
 /* A chapter can be played once the one before it is won (the first always). */
-int PortCoop_Unlocked(int i) { return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1); }
+static int saga_perfect(const char *saga);
+int PortCoop_Unlocked(int i) {
+    if (ch(i) && ch(i)->secret[0]) return PortCoop_Done(i) || saga_perfect(ch(i)->secret);
+    return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1);
+}
+const char *PortCoop_ChSecret(int i) { return ch(i) ? ch(i)->secret : ""; }
