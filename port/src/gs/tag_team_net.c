@@ -526,7 +526,8 @@ static uint64_t tag_load_digest(const TtRoom *r){
         hash=tag_load_digest_word(hash,(uint32_t)p->cpu);
         hash=tag_load_digest_word(hash,(uint32_t)p->difficulty);
         hash=tag_load_digest_word(hash,(uint32_t)p->confirmed);
-        {int lv=Port_TagSeatLevel(i);if(lv)hash=tag_load_digest_word(hash,0x4C560000u|(uint32_t)lv);} /* (the co-op levels: both machines must agree; none, the digest of a copy without them) */
+        /* (not the co-op levels: on a rematch the room server makes this digest itself, Tt_LoadDigest, without them;
+           both machines have them before the choices are confirmed, "#lv", and keep them for the rematch) */
     }
     return hash;
 }
