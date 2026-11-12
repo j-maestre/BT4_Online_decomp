@@ -783,6 +783,33 @@ s32 MisResult_Run(s32 section) {
 /* Historia cooperativa (port/src/coop_story.c): the Z points a co-op battle earned, into the save's money (written
    with the save, as the story mode's are). */
 /* The co-op shop (src/menu/port_coop.c): the save's Z points, and spending them (written to the card at once). */
+/* Historia cooperativa: which progress belongs to the save in use (port/src/plat_settings.c keeps one file each). Its
+   id is in the save's unused end (0x3FF0: "COOP", the id); a save without one gets one, written to the card at once
+   when the card holds this same save (a new game: with its first save). The first save given one keeps the progress
+   made before (id 1). Called when the co-op screen opens. */
+void PortCoop_SaveSync(void) {
+    extern unsigned Port_CoopNewId(void);
+    extern void Port_CoopUseSave(unsigned id);
+    extern int Port_Setting(const char *, int);
+    extern void Port_SettingSave(const char *, int), Port_SettingsWrite(void);
+    extern s32 McCard_Checksum(void *buf, s32 size, s32 write);
+    extern int Port_McRewriteSystemSave(const void *data, int size);
+    u8 *b = (u8 *)gSaveData;
+    u32 magic, id;
+    if (gSaveData == NULL) return;
+    memcpy(&magic, b + 0x3FF0, 4);
+    memcpy(&id, b + 0x3FF4, 4);
+    if (magic != 0x504F4F43u || id == 0) {
+        id = Port_Setting("coopsave_legacy", 0) ? Port_CoopNewId() : 1;
+        if (id == 1) { Port_SettingSave("coopsave_legacy", 1); Port_SettingsWrite(); }
+        magic = 0x504F4F43u;
+        memcpy(b + 0x3FF0, &magic, 4);
+        memcpy(b + 0x3FF4, &id, 4);
+        McCard_Checksum(gSaveData, 0x4000, 1);
+        Port_McRewriteSystemSave(gSaveData, 0x4000);
+    }
+    Port_CoopUseSave(id);
+}
 s32 PortCoop_Money(void) { return gSaveData != NULL ? (s32)P_SAVE->money : 0; }
 s32 PortCoop_SpendMoney(s32 n) {
     extern s32 McCard_Checksum(void *buf, s32 size, s32 write);

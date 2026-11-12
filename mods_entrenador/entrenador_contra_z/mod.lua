@@ -18,6 +18,12 @@ local KINDS = {
 local GROUPS = { "Contra Z", "Fium fium" }
 
 local s = { reset = false, flash = -1000, flashText = "", flashSub = "", flashColor = 0, k = {}, g = {}, unlockedSeq = nil }
+-- Modo examen: los 20 siguientes intentos (contra Z o fium fium) cuentan; al final, una nota.
+local EXAM_TOTAL = 20
+local exam = { on = false, active = false, n = 0, ok = 0, result = nil, resultAt = -1000, best = nil }
+local function grade(pct)
+    return pct >= 95 and "Z" or pct >= 85 and "S" or pct >= 70 and "A" or pct >= 55 and "B" or pct >= 40 and "C" or pct >= 25 and "D" or "E"
+end
 
 local function clear()
     for i = 1, #KINDS do s.k[i] = { pressSeq = nil, hitSeq = nil, pending = nil } end
@@ -33,6 +39,17 @@ local function report(game, i, text, sub, color, counter, streak)
     local kind = KINDS[i]
     local g = s.g[kind.group]
     if counter then g[counter] = g[counter] + 1 end
+    if exam.active and counter then -- (el examen: cada intento juzgado)
+        exam.n = exam.n + 1
+        if counter == "ok" and streak == 1 then exam.ok = exam.ok + 1 end
+        if exam.n >= EXAM_TOTAL then
+            exam.active = false
+            local pct = math.floor(exam.ok * 100 / EXAM_TOTAL + 0.5)
+            exam.result = { ok = exam.ok, pct = pct, grade = grade(pct) }
+            exam.resultAt = game.frame
+            if not exam.best or pct > exam.best then exam.best = pct end
+        end
+    end
     local milestone = false
     if streak == 1 then
         g.streak = g.streak + 1
@@ -122,7 +139,7 @@ end
 
 return {
     name = "Entrenador de defensa",
-    version = "3.1",
+    version = "3.2",
     author = "",
     description = "Contra Z y esquiva con círculo (golpes, técnicas y embestidas): a tiempo, antes o tarde, en ticks. Necesita el juego parcheado.",
     settings = {
@@ -137,6 +154,8 @@ return {
           choices = { "Abajo centro", "Abajo izquierda", "Abajo derecha" }, default = 2 },
         { id = "lines", label = "Líneas de historial", type = "slider", min = 0, max = 5, step = 1, default = 2 },
         { id = "opacity", label = "Opacidad del panel", type = "slider", min = 40, max = 100, step = 5, default = 90 },
+        { id = "examen", label = "Modo examen (20 intentos y una nota)", type = "toggle", default = false,
+          tip = "Actívalo para empezar: los 20 siguientes intentos de contra Z o fium fium cuentan. Desactívalo y actívalo para repetir." },
         { id = "mezcla", label = "CPU: mezcla golpes y especiales al azar", type = "toggle", default = false,
           tip = "Con el entrenamiento de esquiva (F1 > Técnicas) activo, la CPU mezcla golpes y ataques especiales sin avisar." },
         { id = "reset", label = "Reiniciar contadores (cambiar)", type = "toggle", default = false,
@@ -146,6 +165,11 @@ return {
     on_frame = function(game)
         local r = bt3.setting("reset")
         if r ~= s.reset then s.reset = r; clear() end
+        local e = bt3.setting("examen")
+        if e ~= exam.on then
+            exam.on = e
+            exam.active, exam.n, exam.ok, exam.result = e, 0, 0, nil
+        end
         if not game.battle then
             for i = 1, #KINDS do s.k[i].pressSeq, s.k[i].hitSeq, s.k[i].pending = nil, nil, nil end
             s.unlockedSeq = nil
@@ -206,6 +230,19 @@ return {
                     end
                 end
             end
+        end
+
+        if exam.active then
+            hud.fill(hud.w / 2 - 110, 8, 220, 40, bt3.rgba(0, 0, 0, 210), 6)
+            hud.text(hud.w / 2, 12, string.format("EXAMEN  %d / %d", exam.n, EXAM_TOTAL), rgba(0xFFD55BFF, 1), 15, "center")
+            hud.text(hud.w / 2, 31, string.format("a tiempo: %d", exam.ok), rgba(0xFFFFFFFF, 1), 11, "center")
+        elseif exam.result and game.frame - exam.resultAt < 60 * 12 then
+            local o = { outline = bt3.rgba(0, 0, 0, 230), outline_size = 2, font = "game" }
+            hud.fill(hud.w / 2 - 180, hud.h * 0.18 - 10, 360, 110, bt3.rgba(0, 0, 0, 200), 10)
+            hud.text(hud.w / 2, hud.h * 0.18, "EXAMEN TERMINADO", rgba(0xFFD55BFF, 1), 22, "center", o)
+            hud.text(hud.w / 2, hud.h * 0.18 + 30, string.format("Nota %s", exam.result.grade), rgba(0x6EFF8CFF, 1), 34, "center", o)
+            hud.text(hud.w / 2, hud.h * 0.18 + 72, string.format("%d de %d a tiempo (%d%%)   mejor: %d%%", exam.result.ok, EXAM_TOTAL,
+                     exam.result.pct, exam.best or 0), rgba(0xFFFFFFFF, 1), 13, "center", o)
         end
 
         local dur = bt3.setting("flash_time") * 60 -- on_hud va a 60 por segundo

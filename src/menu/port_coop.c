@@ -918,6 +918,7 @@ static void Co_Draw(void) {
 s32 PortCoop_Run(void) {
     s32 go, before = PortCoop_Selected(), joined = PortCoop_Joining();
 
+    { extern void PortCoop_SaveSync(void); PortCoop_SaveSync(); } /* (this save's own progress) */
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
