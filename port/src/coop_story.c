@@ -324,7 +324,8 @@ static int sPickedLevel; /* its level when picked: kept for a rematch with the s
 int PortRpg_MyChara(void) { int c = Port_Setting("coop_mi_chara", 1); return c >= 0 && c < 512 ? c : 1; }
 void PortRpg_SetMyChara(int chara) { Port_SettingSave("coop_mi_chara", chara); Port_SettingsWrite(); }
 int PortRpg_MyLevel(void);
-void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; sPickedLevel = sUsingMine ? PortRpg_MyLevel() : 0; if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
+static void rpg_pick_points(void);
+void PortRpg_PickMine(int mine) { sUsingMine = mine != 0; sPickedLevel = sUsingMine ? PortRpg_MyLevel() : 0; rpg_pick_points(); if (getenv("BT4_RENDER_TEST")) fprintf(stderr, "coop: pick from my own cell: %d\n", sUsingMine); }
 int PortRpg_UsingMine(void) { return sUsingMine; }
 void Port_TraceLine(const char *s) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s\n", s); fflush(stderr); } }
 void Port_TraceInt(const char *s, int v) { if (getenv("BT4_RENDER_TEST")) { fprintf(stderr, "%s %d\n", s, v); fflush(stderr); } }
@@ -346,6 +347,62 @@ int PortRpg_LevelMille(void) {
     return level >= RPG_MAX_LEVEL ? 1000 : xp * 1000 / rpg_need(level);
 }
 
+/* ------------------------------------------------------------------------------------------------------------------
+ * "Mi personaje": improvement points, its own name and a title (src/menu/port_coop.c shows them).
+ * - A point for each level above 1, spread by the player over health, attack and defence (each point +0.5%, at
+ *   most 40 in one); taken when the cell is picked and told to the partner with the level ("#lv"), as the level.
+ * - Its name (setting coop_mi_nombre) and title (coop_titulo): told to the partner in the room ("#me").
+ * - Titles: by level, or bought in the shop (coop_titulos_comprados, a bit each).
+ * ---------------------------------------------------------------------------------------------------------------- */
+extern void Port_SettingText(const char *name, const char *def, char *out, int size);
+extern void Port_SettingTextSave(const char *name, const char *value);
+#define RPG_POINT_MAX 40
+static const char *const kPtKey[3] = {"coop_pt_vida", "coop_pt_ataque", "coop_pt_defensa"};
+static int sPickedPts[3];
+int PortRpg_Points(int w) { int v = w >= 0 && w < 3 ? Port_Setting(kPtKey[w], 0) : 0; return v < 0 ? 0 : v > RPG_POINT_MAX ? RPG_POINT_MAX : v; }
+int PortRpg_PointsFree(void) { return PortRpg_MyLevel() - 1 - PortRpg_Points(0) - PortRpg_Points(1) - PortRpg_Points(2); }
+int PortRpg_PointAdd(int w, int d) {
+    int v;
+    if (w < 0 || w >= 3) return 0;
+    v = PortRpg_Points(w) + d;
+    if (v < 0 || v > RPG_POINT_MAX || (d > 0 && PortRpg_PointsFree() < d)) return 0;
+    Port_SettingSave(kPtKey[w], v);
+    Port_SettingsWrite();
+    return 1;
+}
+void PortRpg_PointsReset(void) { int w; for (w = 0; w < 3; w++) Port_SettingSave(kPtKey[w], 0); Port_SettingsWrite(); }
+int PortRpg_PickPoints(int w) { return sUsingMine && w >= 0 && w < 3 ? sPickedPts[w] : 0; }
+const char *PortRpg_Name(void) {
+    static char name[24];
+    Port_SettingText("coop_mi_nombre", "", name, sizeof(name));
+    return name;
+}
+void PortRpg_SetName(const char *name) { Port_SettingTextSave("coop_mi_nombre", name); Port_SettingsWrite(); }
+static const struct { const char *name; int level, price; } kTitles[] = {
+    {"Novato", 1, 0}, {"Guerrero Z", 10, 0}, {"Guerrero de élite", 25, 0}, {"Súper Guerrero", 40, 0},
+    {"Maestro de las artes marciales", 60, 0}, {"Leyenda", 80, 0}, {"Dios de la Destrucción", 100, 0},
+    {"Héroe de Namek", 0, 15000}, {"Príncipe de los Saiyajin", 0, 30000}, {"Patrulla del Tiempo", 0, 30000},
+    {"Rey de la Galaxia del Norte", 0, 50000}, {"Campeón del Torneo", 0, 80000}};
+#define RPG_TITLES ((int)(sizeof(kTitles) / sizeof(kTitles[0])))
+int PortRpg_TitleCount(void) { return RPG_TITLES; }
+const char *PortRpg_TitleName(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].name : ""; }
+int PortRpg_TitlePrice(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].price : 0; }
+int PortRpg_TitleLevel(int i) { return i >= 0 && i < RPG_TITLES ? kTitles[i].level : 0; }
+int PortRpg_TitleUnlocked(int i) {
+    if (i < 0 || i >= RPG_TITLES) return 0;
+    if (kTitles[i].price) return (Port_Setting("coop_titulos_comprados", 0) >> i) & 1;
+    return PortRpg_MyLevel() >= kTitles[i].level;
+}
+int PortRpg_Title(void) { int t = Port_Setting("coop_titulo", 0); return PortRpg_TitleUnlocked(t) ? t : 0; }
+void PortRpg_SetTitle(int i) { if (PortRpg_TitleUnlocked(i)) { Port_SettingSave("coop_titulo", i); Port_SettingsWrite(); } }
+/* the shop (src/menu/port_coop.c): a title bought; the Z points are taken there */
+void PortRpg_TitleBought(int i) {
+    if (i < 0 || i >= RPG_TITLES || !kTitles[i].price) return;
+    Port_SettingSave("coop_titulos_comprados", Port_Setting("coop_titulos_comprados", 0) | (1 << i));
+    Port_SettingsWrite();
+}
+static void rpg_pick_points(void) { int w; for (w = 0; w < 3; w++) sPickedPts[w] = sUsingMine ? PortRpg_Points(w) : 0; }
+
 static void grade_key(char *out, int cap, int i) { done_key(out, cap, i); memcpy(out, "coop_nota_", 10); }
 /* The best grade of chapter i: "" without one. */
 const char *PortCoop_ChGrade(int i) {
@@ -365,7 +422,8 @@ int PortCoop_ChBestDiff(int i) {
 /* The last battle's results, for the results panel (src/menu/port_tbo.c): whole numbers by field. */
 enum { RES_VALID, RES_WON, RES_INFINITE, RES_WAVES, RES_GRADE, RES_SCORE, RES_SHARE, RES_REVIVES, RES_DOWNS, RES_ZP, RES_XP,
        RES_BEFORE, RES_AFTER, RES_MILLE, RES_DIFF, RES_MINE, RES_COUNT };
-static int sRes[RES_COUNT], sResCaps;
+static int sRes[RES_COUNT], sResCaps, sResTeam;
+int PortCoop_ResultTeam(void) { return sResTeam; }
 int PortCoop_ResultCapsules(void) { return sResCaps; }
 int PortCoop_Result(int field) { return field >= 0 && field < RES_COUNT ? sRes[field] : 0; }
 const char *PortCoop_ResultGrade(void) { return kGrades[sRes[RES_GRADE] >= 0 && sRes[RES_GRADE] <= 7 ? sRes[RES_GRADE] : 0]; }
@@ -559,6 +617,21 @@ static void rpg_reward(int won) {
         sRewardZp = 0;
     }
     if (!sUsingMine) xp = 0; /* (the original fighter: no experience; the grade and the Z points all the same) */
+    {   /* the team bonus: battles in a row with the same partner, +10% experience each after the first (at most +40%) */
+        extern int TagBattle_Count(void), TagBattle_Team(int), Port_TagCPU(int);
+        extern const char *Port_TagPlayerName(int);
+        char last[24], now[24];
+        int a, streak;
+        now[0] = 0;
+        for (a = 0; a < TagBattle_Count() && a < 10; a++)
+            if (a != me && TagBattle_Team(a) == 0 && !Port_TagCPU(a) && Port_TagPlayerName(a)) { snprintf(now, sizeof(now), "%s", Port_TagPlayerName(a)); break; }
+        Port_SettingText("coop_ult_compa", "", last, sizeof(last));
+        streak = now[0] && !strcmp(now, last) ? Port_Setting("coop_racha_equipo", 1) + 1 : 1;
+        if (streak > 5) streak = 5;
+        if (now[0]) { Port_SettingTextSave("coop_ult_compa", now); Port_SettingSave("coop_racha_equipo", streak); }
+        sResTeam = now[0] ? (streak - 1) * 10 : 0;
+        if (xp > 0 && sResTeam > 0) xp = xp * (100 + sResTeam) / 100;
+    }
     {   int capExp = 0, capZp = 0; /* the capsules, by themselves: one each, when it doubles something */
         if (xp > 0 && PortItem_Count(0) > 0) { xp *= 2; capExp = 1; Port_SettingSave("coop_cap_exp", PortItem_Count(0) - 1); }
         if (sRewardZp > 0 && PortItem_Count(1) > 0) { sRewardZp *= 2; capZp = 1; Port_SettingSave("coop_cap_zp", PortItem_Count(1) - 1); }

@@ -154,6 +154,7 @@ static s32 sRevWarp[10];     /* how long a partner far away has held guard: a se
 static s32 sRevNeed[10];     /* how long this fallen player's revive takes (its helper's level reward) */
 static s32 sLvFoePct = 100;  /* the chapter's difficulty: the rivals' damage, % */
 static s32 sBossPct[10][6], sBossInit[10][6], sBossFlash; /* bosses that transform (CoopBoss_Set) */
+static s32 sLvPts[10][3];    /* each player's improvement points: health, attack, defence (+0.5% each) */
 /* The level rewards of "Mi personaje" (port/src/coop_story.c lists them): level 10 revives a partner in two seconds,
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
@@ -323,6 +324,7 @@ void CoopLv_Configure(s32 on) {
     sLvRivalDamage = 0;
     sLvAttacker = -1;
     sLvFoePct = 100;
+    memset(sLvPts, 0, sizeof(sLvPts));
     memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
 }
@@ -331,6 +333,12 @@ s32 CoopLv_Active(void) { return sLvOn && TagBattle_Active(); }
 /* the chapter's difficulty (src/battle/battle_work.c): the rivals' damage to the players, % */
 /* A rival's member that transforms (port/src/coop_story.c, "transforma"): below `pct` % of the health it started
    with, the hit that takes it there finishes it, and its next form, the member behind, comes in at once. */
+/* A player's improvement points ("Mi personaje", port/src/coop_story.c): its health is raised where it is set up
+   (src/battle/battle_work.c), its attack and defence here. */
+void CoopLv_SetPoints(s32 actor, s32 hp, s32 atk, s32 def) {
+    if (actor < 0 || actor >= 10) return;
+    sLvPts[actor][0] = hp; sLvPts[actor][1] = atk; sLvPts[actor][2] = def;
+}
 void CoopBoss_Set(s32 actor, s32 member, s32 pct) {
     if (actor >= 0 && actor < 10 && member >= 0 && member < 6) sBossPct[actor][member] = pct;
 }
@@ -348,11 +356,13 @@ s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
     if (!sLvOn || amount <= 0 || v < 0 || v >= 10) return amount;
     if (a >= 0 && a < 10 && a != v && TagBattle_Team(a) != TagBattle_Team(v)) {
         if (sLvLevel[a] > 0) amount = amount * CoopLv_AttackPct(sLvLevel[a]) / 100;
+        if (sLvPts[a][1] > 0) amount = amount * (200 + sLvPts[a][1]) / 200; /* (attack points) */
         if (TagBattle_Team(v) == 1) sLvDealt[a] += amount;
         if (TagBattle_Team(a) == 1 && sLvFoePct != 100) amount = amount * sLvFoePct / 100; /* (the difficulty) */
     }
     if (sLvLevel[v] > 0) amount = amount * CoopLv_TakenPct(sLvLevel[v]) / 100;
     if (sLvLevel[v] >= 60) amount = amount * 90 / 100; /* (the level 60 reward) */
+    if (sLvPts[v][2] > 0) amount = amount * 200 / (200 + sLvPts[v][2]); /* (defence points) */
     if (TagBattle_Team(v) == 1 && chr->active >= 0 && chr->active < 6 && sBossPct[v][chr->active] > 0
         && chr->active + 1 < chr->memberCount) { /* a boss that transforms */
         s32 m = chr->active, hp = BtlMember_GetGauge(chr, m)->health;

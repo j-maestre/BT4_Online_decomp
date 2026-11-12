@@ -877,12 +877,23 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
                 const char *name;
                 float x;
                 if (TagBattle_Team(a) != 0 || CoopLv_Level(a) <= 0) continue;
-                name = Port_TagPlayerName(a);
+                {   extern int Port_TagSeatCard(int, char *, int, char *, int);
+                    static char cn[24], cl[64];
+                    name = Port_TagPlayerName(a);
+                    cl[0] = 0;
+                    if (Port_TagSeatCard(a, cn, sizeof(cn), cl, sizeof(cl)) && cn[0]) name = cn; /* (its fighter's own name) */
+                }
                 if (!name || !name[0]) name = k ? "Jugador 2" : "Jugador 1";
                 snprintf(line, sizeof(line), "%.20s  Nv %d", name, CoopLv_Level(a));
                 x = k ? cx + 120 : cx - 120;
                 coop_fill(x - 95, MODS_HUD_H - 30, 190, 22, 0x000000B0u, 6);
                 coop_text(x, MODS_HUD_H - 26, line, a == TagBattle_LocalActor() ? 0xFFD55BFFu : 0xFFFFFFE0u, 11);
+                {   extern int Port_TagSeatCard(int, char *, int, char *, int);
+                    extern const char *PortRpg_TitleName(int);
+                    char cn2[24], cl2[64], *t;
+                    if (Port_TagSeatCard(a, cn2, sizeof(cn2), cl2, sizeof(cl2)) && (t = strstr(cl2, "  ")) != NULL && t[2])
+                        coop_text(x, MODS_HUD_H - 42, t + 2, 0xC8E6FFD0u, 9); /* (its title) */
+                }
                 k++;
             }
     }

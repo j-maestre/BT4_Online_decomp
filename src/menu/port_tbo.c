@@ -2213,7 +2213,12 @@ static void Tb_DrawCoopResultText(void){
     sprintf(line,"Revives: %d",PortCoop_Result(TBR_REVIVES));Ps_TextRaw(cx+10,206,line,.46f,(x1-x0)/2,0);
     sprintf(line,"Ca\303\255das: %d",PortCoop_Result(TBR_DOWNS));Ps_TextRaw(cx+10,224,line,.46f,(x1-x0)/2,0);
     if(PortCoop_Result(TBR_ZP)>0){sprintf(line,"+%d Puntos Z",PortCoop_Result(TBR_ZP));Ps_TextRaw(x0,250,line,.56f,(x1-x0)/2,1);}
-    if(PortCoop_Result(TBR_XP)>0){sprintf(line,"+%d EXP",PortCoop_Result(TBR_XP));Ps_TextRaw(cx+10,250,line,.56f,(x1-x0)/2,5);}
+    if(PortCoop_Result(TBR_XP)>0){extern int PortCoop_ResultTeam(void),PortCoop_ResultCapsules(void);
+        sprintf(line,"+%d EXP",PortCoop_Result(TBR_XP));Ps_TextRaw(cx+10,250,line,.56f,(x1-x0)/2,5);
+        if(PortCoop_ResultTeam()>0||PortCoop_ResultCapsules()){
+            sprintf(line,"%s%s",PortCoop_ResultTeam()>0?"":"",PortCoop_ResultCapsules()?"c\303\241psula x2  ":"");
+            if(PortCoop_ResultTeam()>0){char t[48];sprintf(t,"equipo +%d%%",PortCoop_ResultTeam());Ps_Cat(line,t,128);}
+            Ps_TextRaw(cx+10,236,line,.36f,(x1-x0)/2,3);}}
     if(PortCoop_Result(TBR_MINE)){
         if(after>before)sprintf(line,"Mi personaje: nivel %d \342\206\222 %d  \302\241Sube de nivel!",before,after);
         else sprintf(line,"Mi personaje: nivel %d",after);
@@ -2275,6 +2280,12 @@ static void Tb_DrawTagRoomText(void){
         else Ps_Copy(line,name[0]?name:(char*)PortOnline_Text("Empty"),sizeof(line));
         Ps_TextRaw(x,Ps_TextTop(centre,.60f),line,.60f,142-left,!sTb->tagRoomAction&&i==sTb->tagRoomCur?1:name[0]?0:4);
         if(Port_TagCPU(i)){Ps_Align(2);Ps_Text(Port_TagTeam(i)?right-33:231,Ps_TextTop(centre,.40f),sTagDifficulty[Port_TagDifficulty(i)],.40f,76,3);Ps_Align(0);}
+        else if(PortCoop_Active()){ /* Historia cooperativa: the player's card (its fighter's name, level and title) */
+            extern int Port_TagSeatCard(int,char*,int,char*,int);char cn[24],cl[64];
+            if(Port_TagSeatCard(i,cn,sizeof(cn),cl,sizeof(cl))){
+                if(cn[0]){char both[96];sprintf(both,"%.20s  \302\267  %.60s",cn,cl);Ps_Copy(cl,both,64);}
+                Ps_Align(2);Ps_TextRaw(Port_TagTeam(i)?right-33:231,Ps_TextTop(centre+(step-8.0f)*.30f,.34f),cl,.34f,150,3);Ps_Align(0);}
+        }
     }
     if(!local){
         if(bottom+48.0f<=320.0f){Ps_Text(28+left,bottom+18,"ROOM CODE",.38f,120,3);Ps_TextRaw(28+left,bottom+32,(char*)Port_TagCode(),.64f,240,1);}

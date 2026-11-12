@@ -37,7 +37,7 @@ extern const char *PortCoop_ChGrade(int i), *PortCoop_RewardLine(void);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
-enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK, CO_MISSIONS, CO_MAP };
+enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK, CO_MISSIONS, CO_MAP, CO_ME, CO_NAME, CO_POINTS };
 #define CO_ROWS 7 /* chapters on the list at once */
 
 typedef struct CoopScreen {
@@ -50,7 +50,7 @@ typedef struct CoopScreen {
 static CoopScreen *sCo;
 static void Co_PickOpen(void);
 static void Co_MapOpen(void);
-static s32 sCoPickBack, sCoPickTested; /* back from "Mi personaje": on its row */
+static s32 sCoPickBack, sCoPickTested, sCoFromMe; /* back from "Mi personaje": on its row */
 
 /* The game's 16-bit text for the message box, from UTF-8. */
 static u16 *Co_Box(const char *utf8) {
@@ -130,8 +130,8 @@ static void Co_StartUpdate(void) {
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
-        if (sCo->start == 5) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
-        else if (sCo->start == 4) { sCo->cur = 0; sCo->act = 0; Co_SetPage(CO_MISSIONS); }
+        if (sCo->start == 5) { sCo->cur = 0; Co_SetPage(CO_ME); } /* "Mi personaje" */
+        else if (sCo->start == 4) { sCo->cur = 0; sCo->act = 0; sCoFromMe = 0; Co_SetPage(CO_MISSIONS); }
         else if (sCo->start == 0) Co_MapOpen();
         else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
         else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
@@ -210,8 +210,9 @@ static void Co_MissionsUpdate(void) {
         if (PortMis_Claim(sCo->cur)) Snd_PlaySe(1, 1); else Snd_PlaySe(1, 2);
     } else if ((pad->gamePressed & PADG_TRIANGLE) || ((pad->gamePressed & PADG_CROSS) && sCo->act)) {
         Snd_PlaySe(1, 2);
-        sCo->cur = 0; sCo->act = 0;
-        Co_SetPage(CO_START);
+        sCo->cur = sCoFromMe ? 4 : 0; sCo->act = 0;
+        Co_SetPage(sCoFromMe ? CO_ME : CO_START);
+        sCoFromMe = 0;
     }
 }
 
@@ -272,6 +273,79 @@ static void Co_MapUpdate(void) {
         PortCoop_Load();
         Co_MapOpen();
     }
+}
+
+/* "Mi personaje": who it is (the fight's select), its name, its title, its improvement points and its statistics. */
+extern const char *PortRpg_Name(void), *PortRpg_TitleName(int);
+extern void PortRpg_SetName(const char *name), PortRpg_SetTitle(int i), PortRpg_PointsReset(void);
+extern int PortRpg_Title(void), PortRpg_TitleCount(void), PortRpg_TitleUnlocked(int), PortRpg_TitleLevel(int), PortRpg_TitlePrice(int);
+extern int PortRpg_Points(int w), PortRpg_PointsFree(void), PortRpg_PointAdd(int w, int d);
+static const char *const kCoKeys[5] = {"ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "abcdefghijklm", "nopqrstuvwxyz", "0123456789-. "};
+#define CO_KEY_COLS 14 /* (13 letters and OK on the last row) */
+static char sCoName[20];
+static void Co_MeUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, "Elegir");
+    Ps_Prompt(2, "Volver");
+    Ps_Move(&sCo->cur, 5);
+    if (sCo->cur == 2 && (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT))) { /* the title: the next one unlocked */
+        s32 n = PortRpg_TitleCount(), t = PortRpg_Title(), k;
+        for (k = 1; k < n; k++) {
+            s32 c = (t + ((pad->gameRepeat & PADG_RIGHT) ? k : n - k)) % n;
+            if (PortRpg_TitleUnlocked(c)) { PortRpg_SetTitle(c); Snd_PlaySe(1, 0); break; }
+        }
+    }
+    if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
+        Snd_PlaySe(1, 1);
+        if (sCo->cur == 0) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
+        else if (sCo->cur == 1) { Ps_Copy(sCoName, (char *)PortRpg_Name(), 20); sCo->act = 0; Co_SetPage(CO_NAME); }
+        else if (sCo->cur == 3) { sCo->act = 0; Co_SetPage(CO_POINTS); }
+        else if (sCo->cur == 4) { sCo->cur = 0; sCo->act = 1; sCoFromMe = 1; Co_SetPage(CO_MISSIONS); }
+    } else if (pad->gamePressed & PADG_TRIANGLE) {
+        Snd_PlaySe(1, 2);
+        sCo->cur = 0;
+        Co_SetPage(CO_START);
+    }
+}
+static void Co_NameUpdate(void) { /* the keys: act = row * CO_KEY_COLS + column */
+    Pad *pad = &gPad[0];
+    s32 r = sCo->act / CO_KEY_COLS, c = sCo->act % CO_KEY_COLS, len = (s32)strlen(sCoName), done = 0;
+
+    Ps_Prompt(0, "Escribir");
+    Ps_Prompt(1, "Borrar");
+    Ps_Prompt(2, "Cancelar");
+    if (pad->gameRepeat & PADG_UP) r = (r + 4) % 5;
+    if (pad->gameRepeat & PADG_DOWN) r = (r + 1) % 5;
+    if (pad->gameRepeat & PADG_LEFT) c = (c + CO_KEY_COLS - 1) % CO_KEY_COLS;
+    if (pad->gameRepeat & PADG_RIGHT) c = (c + 1) % CO_KEY_COLS;
+    if (r < 4 && c >= 13) c = (pad->gameRepeat & PADG_LEFT) ? 12 : 0;
+    if (pad->gameRepeat & (PADG_UP | PADG_DOWN | PADG_LEFT | PADG_RIGHT)) Snd_PlaySe(1, 0);
+    sCo->act = r * CO_KEY_COLS + c;
+    if (pad->gamePressed & PADG_CROSS) {
+        if (r == 4 && c == 13) done = 1;
+        else if (len < 16) { sCoName[len] = kCoKeys[r][c]; sCoName[len + 1] = 0; Snd_PlaySe(1, 0); }
+    } else if ((pad->gamePressed & PADG_SQUARE) && len > 0) { sCoName[len - 1] = 0; Snd_PlaySe(1, 2); }
+    else if (pad->gamePressed & PADG_START) done = 1;
+    else if (pad->gamePressed & PADG_TRIANGLE) { Snd_PlaySe(1, 2); sCo->cur = 1; Co_SetPage(CO_ME); }
+    if (done) {
+        while ((len = (s32)strlen(sCoName)) > 0 && sCoName[len - 1] == ' ') sCoName[len - 1] = 0;
+        PortRpg_SetName(sCoName);
+        Snd_PlaySe(1, 1);
+        sCo->cur = 1;
+        Co_SetPage(CO_ME);
+    }
+}
+static void Co_PointsUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, sCo->act == 3 ? "Repartir de nuevo" : "Volver");
+    Ps_Prompt(2, "Volver");
+    Ps_Move(&sCo->act, 4);
+    if (sCo->act < 3 && (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT)))
+        Snd_PlaySe(1, PortRpg_PointAdd(sCo->act, (pad->gameRepeat & PADG_RIGHT) ? 1 : -1) ? 0 : 2);
+    if ((pad->gamePressed & PADG_CROSS) && sCo->act == 3) { PortRpg_PointsReset(); Snd_PlaySe(1, 1); }
+    else if (pad->gamePressed & (PADG_TRIANGLE | PADG_CROSS)) { Snd_PlaySe(1, 2); sCo->cur = 3; Co_SetPage(CO_ME); }
 }
 
 static void Co_ListUpdate(void) {
@@ -551,6 +625,65 @@ static void Co_Draw(void) {
                     PortCoop_ChSaga(sSagaFirst[sCoSaga]), sSagaLen[sCoSaga], Co_SagaDone(sCoSaga));
             box = line;
         } else box = "Revisa historia_coop/capitulos.lua junto al juego. Cuadrado: leerlo otra vez.";
+    } else if (sCo->page == CO_ME) {
+        char cn[48], value[64];
+        static const char *rows[5] = {"Personaje", "Nombre", "T\303\255tulo", "Mejoras", "Estad\303\255sticas"};
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Mi personaje", 1.3f, 300.0f, 0x80);
+        PortTbo_CharaName(PortRpg_MyChara(), cn, 48);
+        sprintf(line, "%s%s%.40s  \302\267  Nv %d", PortRpg_Name()[0] ? PortRpg_Name() : "", PortRpg_Name()[0] ? "  \302\267  " : "", cn, PortRpg_MyLevel());
+        Ps_Text(50.0f + slide, 66.0f, line, 0.55f, 410.0f, 1);
+        for (i = 0; i < 5; i++) {
+            if (i == 0) sprintf(value, "%.40s", cn);
+            else if (i == 1) sprintf(value, "%.20s", PortRpg_Name()[0] ? PortRpg_Name() : "(sin nombre)");
+            else if (i == 2) sprintf(value, "<  %.40s  >", PortRpg_TitleName(PortRpg_Title()));
+            else if (i == 3) sprintf(value, PortRpg_PointsFree() > 0 ? "\302\241%d puntos sin gastar!" : "Vida %d  Ataque %d  Defensa %d",
+                                     PortRpg_PointsFree() > 0 ? PortRpg_PointsFree() : PortRpg_Points(0), PortRpg_Points(1), PortRpg_Points(2));
+            else sprintf(value, "%d combates", PortStat(0));
+            Co_Row(50.0f + slide, 410.0f + slide, 96.0f + 34.0f * i, (char *)rows[i], value, i == sCo->cur, i == 3 && PortRpg_PointsFree() > 0 ? 1 : 5);
+        }
+        {   f32 x0 = 64.0f + slide, x1 = 396.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
+            Ps_Rect(x0, 274.0f, x1, 279.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
+            Ps_Rect(x0, 274.0f, fill, 279.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+        }
+        if (sCo->cur == 2) {
+            s32 t, n = PortRpg_TitleCount(), got = 0;
+            for (t = 0; t < n; t++) got += PortRpg_TitleUnlocked(t) != 0;
+            sprintf(line, "Izquierda/derecha: cambiar de t\303\255tulo (tienes %d de %d). Los dem\303\241s se ganan subiendo de nivel o en la tienda.", got, n);
+            box = line;
+        } else if (sCo->cur == 1) box = "El nombre de tu personaje: lo ver\303\241 tu compa\303\261ero en la sala y en el combate.";
+        else if (sCo->cur == 3) box = "Cada nivel da un punto. Rep\303\241rtelos entre vida, ataque y defensa (cada punto, +0,5%).";
+        else if (sCo->cur == 4) box = "Todo lo que has hecho en la cooperativa.";
+        else box = Co_RewardsBox();
+    } else if (sCo->page == CO_NAME) {
+        s32 r, c;
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Nombre", 1.3f, 300.0f, 0x80);
+        Ps_Pill(TBO_KIT_BAR, 60.0f + slide, 72.0f, 420.0f + slide, 104.0f, 0x80);
+        sprintf(line, "%s%s", sCoName, (sCo->frames / 16) & 1 ? "_" : " ");
+        Ps_TextRaw(76.0f + slide, Ps_TextTop(88.0f, 0.7f), line, 0.7f, 330.0f, 1);
+        for (r = 0; r < 5; r++)
+            for (c = 0; c < (r == 4 ? 14 : 13); c++) {
+                f32 x = 40.0f + slide + c * 30.0f, y = 120.0f + r * 34.0f, w = (r == 4 && c == 13) ? 50.0f : 26.0f;
+                char key[4];
+                s32 on = sCo->act == r * CO_KEY_COLS + c;
+                Ps_Pill(on ? TBO_KIT_SEL : TBO_KIT_BAR, x, y, x + w, y + 28.0f, 0x80);
+                if (r == 4 && c == 13) sprintf(key, "OK"); else if (kCoKeys[r][c] == ' ') sprintf(key, "_"); else { key[0] = kCoKeys[r][c]; key[1] = 0; }
+                Ps_Align(1);
+                Ps_TextRaw(x + w * 0.5f, Ps_TextTop(y + 14.0f, 0.55f), key, 0.55f, w, on ? 1 : 0);
+                Ps_Align(0);
+            }
+        box = "X: escribir. Cuadrado: borrar. Start u OK: guardar. Tri\303\241ngulo: cancelar. (Hasta 16 letras; _ es un espacio)";
+    } else if (sCo->page == CO_POINTS) {
+        static const char *names[3] = {"Vida", "Ataque", "Defensa"};
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Mejoras", 1.3f, 300.0f, 0x80);
+        sprintf(line, "Puntos sin gastar: %d   (un punto por nivel; nivel %d)", PortRpg_PointsFree(), PortRpg_MyLevel());
+        Ps_Text(50.0f + slide, 70.0f, line, 0.5f, 410.0f, PortRpg_PointsFree() > 0 ? 1 : 3);
+        for (i = 0; i < 3; i++) {
+            char value[48];
+            sprintf(value, "<  %d  >   +%d,%d%%", PortRpg_Points(i), PortRpg_Points(i) / 2, (PortRpg_Points(i) & 1) * 5);
+            Co_Row(50.0f + slide, 410.0f + slide, 104.0f + 36.0f * i, (char *)names[i], value, i == sCo->act, 5);
+        }
+        Co_Row(50.0f + slide, 410.0f + slide, 224.0f, "Repartir de nuevo", NULL, sCo->act == 3, 3);
+        box = "Izquierda/derecha: quitar o poner un punto (m\303\241ximo 40 en cada una). Se aplican en el siguiente combate con tu casilla.";
     } else if (sCo->page == CO_LIST) {
         s32 first = sSagaN > 0 ? sSagaFirst[sCoSaga] : 0, end = sSagaN > 0 ? first + sSagaLen[sCoSaga] : count;
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), sSagaN > 0 ? (char *)PortCoop_ChSaga(first) : "Historia cooperativa", 1.3f, 380.0f, 0x80);
@@ -634,7 +767,7 @@ s32 PortCoop_Run(void) {
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
-    if (sCoPickBack) { sCo->start = 5; sCoPickBack = 0; }
+    if (sCoPickBack) { sCo->start = 5; sCoPickBack = 0; sCo->page = CO_ME; sCo->cur = 0; }
     else if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
     else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
     else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on its saga's list */
@@ -664,6 +797,9 @@ s32 PortCoop_Run(void) {
             else if (sCo->page == CO_PICK) Co_PickUpdate();
             else if (sCo->page == CO_MISSIONS) Co_MissionsUpdate();
             else if (sCo->page == CO_MAP) Co_MapUpdate();
+            else if (sCo->page == CO_ME) Co_MeUpdate();
+            else if (sCo->page == CO_NAME) Co_NameUpdate();
+            else if (sCo->page == CO_POINTS) Co_PointsUpdate();
             else Co_ChapterUpdate();
         }
         Port_MenuPage(52);
