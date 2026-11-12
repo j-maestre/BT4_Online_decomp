@@ -905,7 +905,7 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
         }
         if (lv > 0) { /* the battle just raised "Mi personaje" */
             char up[48];
-            snprintf(up, sizeof(up), "\xC2\xA1NIVEL ARRIBA!  Nv %d", lv);
+            snprintf(up, sizeof(up), "\xC2\xA1SUBES DE NIVEL!  Nv %d", lv);
             coop_fill(cx - 160, MODS_HUD_H * 0.40f - 8, 320, 46, 0x000000C0u, 10);
             coop_text(cx, MODS_HUD_H * 0.40f, up, 0xFFD55BFFu, 26);
         }
