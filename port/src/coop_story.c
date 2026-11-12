@@ -25,13 +25,15 @@
 #define COOP_RESERVES 16   /* reinforcements: each comes in when a rival on the field falls */
 #define COOP_PER_ACTOR 4   /* behind one rival (a battle side has 5 member slots) */
 
-typedef struct PortCoopFoe { int chara, costume, level, health, behind; char name[40]; } PortCoopFoe;
+typedef struct PortCoopFoe { int chara, costume, level, health, behind, transform; char name[40]; } PortCoopFoe;
+#define COOP_DIALOG 8      /* lines of a chapter's conversation */
 typedef struct PortCoopChapter {
     char id[32], saga[48], title[64], pair[64];
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
-    int foes, reserves;
+    int foes, reserves, dialogs;
     PortCoopFoe foe[COOP_FOES], reserve[COOP_RESERVES];
+    char dlgWho[COOP_DIALOG][32], dlgText[COOP_DIALOG][200];
 } PortCoopChapter;
 
 static PortCoopChapter sCh[COOP_MAX];
@@ -66,6 +68,7 @@ static int read_foes(lua_State *L, const char *key, PortCoopFoe *out, int max) {
         foe->level = field_int(L, "nivel", 2, 0, 4);
         foe->health = field_int(L, "vida", 100, 10, 400);
         foe->behind = field_int(L, "detras", 0, 0, 4) - 1; /* (reinforcements: which rival, 1-based; else in turns) */
+        foe->transform = field_int(L, "transforma", 0, 0, 90); /* (below this % of health: its next form comes in) */
         field_str(L, "nombre", foe->name, sizeof(foe->name));
         lua_pop(L, 1);
         if (foe->chara >= 0) n++;
@@ -147,6 +150,20 @@ int PortCoop_Load(void) {
         c->time = field_int(L, "tiempo", 4, 0, 4);
         c->foes = read_foes(L, "rivales", c->foe, COOP_FOES);
         c->reserves = read_foes(L, "refuerzos", c->reserve, COOP_RESERVES);
+        lua_getfield(L, -1, "dialogo"); /* the conversation: { {"who", "what"}, ... } */
+        for (k = 1; lua_istable(L, -1) && c->dialogs < COOP_DIALOG; k++) {
+            lua_rawgeti(L, -1, k);
+            if (!lua_istable(L, -1)) { lua_pop(L, 1); break; }
+            lua_rawgeti(L, -1, 1);
+            if (lua_type(L, -1) == LUA_TSTRING) snprintf(c->dlgWho[c->dialogs], 32, "%s", lua_tostring(L, -1));
+            lua_pop(L, 1);
+            lua_rawgeti(L, -1, 2);
+            if (lua_type(L, -1) == LUA_TSTRING) snprintf(c->dlgText[c->dialogs], 200, "%s", lua_tostring(L, -1));
+            lua_pop(L, 1);
+            if (c->dlgText[c->dialogs][0]) c->dialogs++;
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
         for (k = 0; k < c->reserves; k++) /* behind which rival each reinforcement comes in */
             if (c->reserve[k].behind < 0 || c->reserve[k].behind >= c->foes) c->reserve[k].behind = c->foes > 0 ? k % c->foes : 0;
         lua_pop(L, 1);
@@ -260,6 +277,13 @@ int PortCoop_Reserve(int k, int j, int *chara, int *costume, int *level, int *he
 }
 int PortCoop_FoeChara(int k) { return sInfinite ? (k >= 0 && k < sInfinite ? CoopInf_FirstChara(k) : -1) : foe(k) ? foe(k)->chara : -1; }
 int PortCoop_FoeCostume(int k) { return foe(k) ? foe(k)->costume : 0; }
+/* The % of health below which rival k (j < 0) or its j-th reinforcement transforms into the one behind it; 0: never. */
+int PortCoop_Transform(int k, int j) {
+    int r;
+    if (j < 0) return foe(k) ? foe(k)->transform : 0;
+    r = reserve_index(k, j);
+    return r >= 0 ? sCh[sSelected].reserve[r].transform : 0;
+}
 int PortCoop_FoeLevel(int k) { int l = (foe(k) ? foe(k)->level : 2) + kDiffAi[PortCoop_Difficulty()]; return l > 4 ? 4 : l; }
 int PortCoop_FoeHealth(int k) { return (foe(k) ? foe(k)->health : 100) * kDiffHealth[PortCoop_Difficulty()] / 100; }
 int PortCoop_Stage(void) { return sSelected >= 0 ? sCh[sSelected].stage : -1; }
@@ -619,5 +643,8 @@ int PortCoop_ChFoeLevel(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES 
 int PortCoop_ChFoeHealth(int i, int k) { return ch(i) && k >= 0 && k < COOP_FOES ? ch(i)->foe[k].health : 100; }
 int PortCoop_ChFoeCount(int i) { return ch(i) ? ch(i)->foes : 0; }
 int PortCoop_ChReserveCount(int i) { return ch(i) ? ch(i)->reserves : 0; }
+int PortCoop_ChDialogCount(int i) { return ch(i) ? ch(i)->dialogs : 0; }
+const char *PortCoop_ChDialogWho(int i, int k) { return ch(i) && k >= 0 && k < ch(i)->dialogs ? ch(i)->dlgWho[k] : ""; }
+const char *PortCoop_ChDialogText(int i, int k) { return ch(i) && k >= 0 && k < ch(i)->dialogs ? ch(i)->dlgText[k] : ""; }
 /* A chapter can be played once the one before it is won (the first always). */
 int PortCoop_Unlocked(int i) { return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1); }

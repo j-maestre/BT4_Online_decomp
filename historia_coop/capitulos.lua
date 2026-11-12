@@ -27,6 +27,12 @@
 --   intro      el texto que se lee antes de crear la sala
 --   cierre     el texto al ganar (cabe en unas 3 líneas)
 --   derrota    el texto al perder (opcional)
+--   dialogo    (opcional) la conversación antes del combate, línea a línea: { {"Quién", "Qué dice"}, ... }
+--              (hasta 8 líneas)
+--
+-- En un rival o refuerzo:
+--   transforma (opcional) el % de vida al que se transforma: cuando baja de ahí, entra el siguiente refuerzo
+--              que tiene detrás (su forma siguiente) en vez de esperar a que caiga del todo
 --
 -- La dificultad viene del número de enemigos y de la vida de los jefes, no de que la CPU esquive más:
 -- los rivales normales van en nivel 2 y los jefes en 3.
@@ -38,6 +44,11 @@ return {
         saga = "Saga Saiyajin",
         titulo = "El hermano de Goku",
         pareja = "Goku (Inicio) y Piccoro (Inicio)",
+        dialogo = {
+            { "Raditz", "Kakarotto, hermano. Has olvidado quién eres: un saiyajin enviado a conquistar este planeta." },
+            { "Goku", "¡Yo me llamo Goku y la Tierra es mi hogar!" },
+            { "Piccoro", "Por esta vez lucharé a tu lado. No te acostumbres." },
+        },
         rivales = {
             { personaje = 77, nivel = 3, vida = 200, nombre = "Raditz" },
             { personaje = 184, nivel = 2, vida = 100, nombre = "Saibaman" },
@@ -57,6 +68,11 @@ return {
         saga = "Saga Saiyajin",
         titulo = "El jardín de los Saibaman",
         pareja = "Krilin y Tenshinhan",
+        dialogo = {
+            { "Nappa", "Vamos a divertirnos un rato. ¡Plantad las semillas!" },
+            { "Krilin", "¿Esas cosas verdes salen de la tierra? Qué asco..." },
+            { "Tenshinhan", "No bajes la guardia. Son más fuertes de lo que parecen." },
+        },
         rivales = {
             { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman" },
             { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman" },
@@ -78,6 +94,11 @@ return {
         saga = "Saga Saiyajin",
         titulo = "La élite saiyajin",
         pareja = "Goku (Inicio) y Gohan (Niño)",
+        dialogo = {
+            { "Vegeta", "Habéis llegado lejos, insectos. Aquí termina vuestro viaje." },
+            { "Gohan", "Papá, tengo miedo... pero no voy a huir." },
+            { "Goku", "Tranquilo, Gohan. Juntos podemos con ellos." },
+        },
         rivales = {
             { personaje = 80, nivel = 2, vida = 200, nombre = "Nappa" },
             { personaje = 29, nivel = 3, vida = 160, nombre = "Vegeta (Explorador)" },
@@ -98,6 +119,11 @@ return {
         saga = "Saga Freezer",
         titulo = "Los esbirros de Freezer",
         pareja = "Gohan (Niño) y Krilin",
+        dialogo = {
+            { "Zarbon", "Freezer quiere las Bolas de Dragón. Vosotros sobráis." },
+            { "Krilin", "Gohan, el radar dice que hay más ahí fuera. Vienen muchos." },
+            { "Gohan", "¡Pues que vengan! No dejaremos que Freezer pida su deseo." },
+        },
         rivales = {
             { personaje = 84, nivel = 2, vida = 160, nombre = "Dodoria" },
             { personaje = 82, nivel = 2, vida = 150, nombre = "Zarbon" },
@@ -117,6 +143,11 @@ return {
         saga = "Saga Freezer",
         titulo = "Las Fuerzas Especiales Ginyu",
         pareja = "Goku (Med) y Vegeta",
+        dialogo = {
+            { "Capitán Ginyu", "¡Fuerzas Especiales Ginyu, posición de combate!" },
+            { "Vegeta", "Kakarotto, no te metas en mi camino. A estos payasos los conozco." },
+            { "Goku", "Son cinco. Nosotros, dos. ¡Me gusta!" },
+        },
         rivales = {
             { personaje = 87, nivel = 2, vida = 180, nombre = "Recoome" },
             { personaje = 88, nivel = 2, vida = 150, nombre = "Burter" },
@@ -137,12 +168,17 @@ return {
         saga = "Saga Freezer",
         titulo = "Las formas de Freezer",
         pareja = "Piccoro (Fin) y Gohan (Niño)",
+        dialogo = {
+            { "Freezer", "¿Sabéis cuántas veces puedo transformarme? Os lo voy a enseñar... una a una." },
+            { "Piccoro", "Cada forma será más fuerte. Guarda fuerzas, Gohan." },
+            { "Gohan", "Si cae una, vendrá la siguiente. ¡Estamos listos!" },
+        },
         rivales = {
-            { personaje = 91, nivel = 3, vida = 200, nombre = "Freezer (1.ª forma)" },
+            { personaje = 91, nivel = 3, vida = 200, transforma = 40, nombre = "Freezer (1.ª forma)" },
         },
         refuerzos = {
-            { personaje = 92, nivel = 3, vida = 220, nombre = "Freezer (2.ª forma)" },
-            { personaje = 93, nivel = 3, vida = 240, nombre = "Freezer (3.ª forma)" },
+            { personaje = 92, nivel = 3, vida = 220, transforma = 40, nombre = "Freezer (2.ª forma)" },
+            { personaje = 93, nivel = 3, vida = 240, transforma = 40, nombre = "Freezer (3.ª forma)" },
             { personaje = 94, nivel = 3, vida = 260, nombre = "Freezer (Forma final)" },
         },
         escenario = -1, musica = -1, tiempo = 4,
@@ -156,6 +192,11 @@ return {
         saga = "Saga Freezer",
         titulo = "El 100% de su poder",
         pareja = "Goku (Med) y Piccoro (Fin)",
+        dialogo = {
+            { "Freezer", "Esta vez usaré el cien por cien de mi poder. Namek tiene los minutos contados." },
+            { "King Cold", "Hijo, déjame ayudarte. Acabemos con estos monos." },
+            { "Goku", "Piccoro, ¿listo? Esto termina hoy." },
+        },
         rivales = {
             { personaje = 95, nivel = 3, vida = 300, nombre = "Freezer (100% de poder)" },
             { personaje = 97, nivel = 2, vida = 180, nombre = "King Cold" },
@@ -175,6 +216,11 @@ return {
         saga = "Saga de los Androides",
         titulo = "El laboratorio del Dr. Gero",
         pareja = "Piccoro (Fin) y Krilin",
+        dialogo = {
+            { "Dr. Gero", "Mis creaciones son perfectas. Vosotros sois solo datos." },
+            { "Krilin", "¡Ese viejo se ha convertido en un androide a sí mismo!" },
+            { "Piccoro", "Hay que encontrar su laboratorio antes de que despierte a los demás." },
+        },
         rivales = {
             { personaje = 103, nivel = 2, vida = 200, nombre = "Androide n.º 19" },
             { personaje = 185, nivel = 3, vida = 180, nombre = "Dr. Gero" },
@@ -194,6 +240,11 @@ return {
         saga = "Saga de los Androides",
         titulo = "Los tres androides",
         pareja = "Trunks y Vegeta",
+        dialogo = {
+            { "Androide n.º 17", "Teníamos un objetivo, pero esto es más divertido." },
+            { "Trunks", "En mi futuro estos androides lo destruyeron todo." },
+            { "Vegeta", "Pues aquí no estamos en tu futuro. ¡Apártate!" },
+        },
         rivales = {
             { personaje = 100, nivel = 2, vida = 220, nombre = "Androide n.º 16" },
             { personaje = 101, nivel = 2, vida = 160, nombre = "Androide n.º 17" },
@@ -214,12 +265,17 @@ return {
         saga = "Saga Cell",
         titulo = "La evolución de Cell",
         pareja = "Gohan (Joven) y Piccoro (Fin)",
+        dialogo = {
+            { "Cell", "Necesito a los androides para alcanzar la perfección. No os metáis." },
+            { "Androide n.º 16", "No le dejaré absorber a nadie más." },
+            { "Gohan", "Cada vez que lo derrotamos vuelve más fuerte. ¡Hay que pararlo ya!" },
+        },
         rivales = {
-            { personaje = 105, nivel = 3, vida = 220, nombre = "Cell (1.ª forma)" },
+            { personaje = 105, nivel = 3, vida = 220, transforma = 40, nombre = "Cell (1.ª forma)" },
             { personaje = 100, nivel = 2, vida = 180, nombre = "Androide n.º 16" },
         },
         refuerzos = {
-            { personaje = 106, nivel = 3, vida = 240, nombre = "Cell (2.ª forma)", detras = 1 },
+            { personaje = 106, nivel = 3, vida = 240, transforma = 40, nombre = "Cell (2.ª forma)", detras = 1 },
             { personaje = 107, nivel = 3, vida = 260, nombre = "Cell (Perfecto)", detras = 1 },
         },
         escenario = -1, musica = -1, tiempo = 4,
@@ -233,6 +289,11 @@ return {
         saga = "Saga Cell",
         titulo = "Los hijos de Cell",
         pareja = "Gohan (Joven) y Vegeta",
+        dialogo = {
+            { "Cell", "Os presento a mis hijos. Jugad con ellos." },
+            { "Vegeta", "¿Siete pequeños monstruos? Hasta me ofendes." },
+            { "Gohan", "No os separéis. Si nos rodean, estamos perdidos." },
+        },
         rivales = {
             { personaje = 109, nivel = 2, vida = 120, nombre = "Cell Jr." },
             { personaje = 109, nivel = 2, vida = 120, nombre = "Cell Jr." },
@@ -255,6 +316,11 @@ return {
         saga = "Saga Cell",
         titulo = "Los Juegos de Cell",
         pareja = "Gohan (Joven) y Goku (Fin)",
+        dialogo = {
+            { "Cell", "Bienvenidos a mis juegos. El ganador decide el destino de la Tierra." },
+            { "Goku", "Gohan, sé que llevas un gran poder dentro. Es tu momento." },
+            { "Gohan", "No dejaré que sigas haciendo daño, Cell." },
+        },
         rivales = {
             { personaje = 107, nivel = 3, vida = 300, nombre = "Cell (Super Perfecto)" },
             { personaje = 109, nivel = 2, vida = 120, nombre = "Cell Jr." },
@@ -275,6 +341,11 @@ return {
         saga = "Saga de Bu",
         titulo = "La nave de Babidi",
         pareja = "Gohan y Vegeta (Majin)",
+        dialogo = {
+            { "Babidi", "¡Despertad a Majin Bu! ¡Necesito toda la energía!" },
+            { "Vegeta", "Babidi me controla... pero mi orgullo es mío." },
+            { "Gohan", "Tenemos que parar esto antes de que el monstruo despierte." },
+        },
         rivales = {
             { personaje = 194, nivel = 2, vida = 150, nombre = "Spopovich" },
             { personaje = 111, nivel = 3, vida = 220, nombre = "Dabura" },
@@ -293,12 +364,17 @@ return {
         saga = "Saga de Bu",
         titulo = "El terror de Súper Bu",
         pareja = "Gotenks y Gohan Definitivo",
+        dialogo = {
+            { "Súper Bu", "Ahora soy más fuerte. Y tengo hambre." },
+            { "Gotenks", "¡El Súper Gotenks ha llegado! Prepárate a perder." },
+            { "Gohan", "Ten cuidado: si absorbe a alguien, cambia de forma." },
+        },
         rivales = {
-            { personaje = 114, nivel = 3, vida = 250, nombre = "Súper Bu" },
+            { personaje = 114, nivel = 3, vida = 250, transforma = 40, nombre = "Súper Bu" },
             { personaje = 112, nivel = 2, vida = 160, nombre = "Majin Bu" },
         },
         refuerzos = {
-            { personaje = 115, nivel = 3, vida = 260, nombre = "Súper Bu (Gotenks absorbido)", detras = 1 },
+            { personaje = 115, nivel = 3, vida = 260, transforma = 40, nombre = "Súper Bu (Gotenks absorbido)", detras = 1 },
             { personaje = 116, nivel = 3, vida = 300, nombre = "Súper Bu (Gohan absorbido)", detras = 1 },
         },
         escenario = -1, musica = -1, tiempo = 4,
@@ -312,6 +388,11 @@ return {
         saga = "Saga de Bu",
         titulo = "La forma pura",
         pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Bu", "¡Ñaaaa!" },
+            { "Vegeta", "Kakarotto, esta vez lucharemos juntos. Solo esta vez." },
+            { "Goku", "Es el último combate. ¡Dalo todo, Vegeta!" },
+        },
         rivales = {
             { personaje = 117, nivel = 3, vida = 350, nombre = "Bu (Forma pura)" },
             { personaje = 114, nivel = 3, vida = 200, nombre = "Súper Bu" },
@@ -332,6 +413,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "El Árbol del Poder",
         pareja = "Goku (Med) y Gohan (Niño)",
+        dialogo = {
+            { "Turles", "El Árbol del Poder se beberá la energía de la Tierra. Y yo comeré su fruto." },
+            { "Goku", "¡Te pareces a mí! Pero no tienes nada que ver conmigo." },
+            { "Gohan", "¡Papá, el árbol está secando el planeta!" },
+        },
         rivales = {
             { personaje = 121, nivel = 3, vida = 220, nombre = "Turles" },
             { personaje = 184, nivel = 2, vida = 110, nombre = "Saibaman" },
@@ -353,6 +439,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "El súper namekiano",
         pareja = "Piccoro (Fin) y Gohan (Niño)",
+        dialogo = {
+            { "Slug", "Este planeta será mi nave. Pronto será de noche para siempre." },
+            { "Piccoro", "Un namekiano usando su poder para el mal... qué vergüenza." },
+            { "Gohan", "¡Señor Piccoro, yo le cubro!" },
+        },
         rivales = {
             { personaje = 123, nivel = 3, vida = 260, nombre = "Slug" },
             { personaje = 182, nivel = 2, vida = 150, nombre = "Garlick Jr." },
@@ -371,6 +462,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "La venganza de Cooler",
         pareja = "Goku (Med) y Piccoro (Fin)",
+        dialogo = {
+            { "Cooler", "Mi hermano era un descuidado. Yo no cometo errores." },
+            { "Piccoro", "Otro de esa familia. Esto no se acaba nunca." },
+            { "Goku", "¡Pues lo acabamos ahora!" },
+        },
         rivales = {
             { personaje = 126, nivel = 3, vida = 220, nombre = "Cooler" },
             { personaje = 186, nivel = 2, vida = 160, nombre = "Salza" },
@@ -390,6 +486,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "El torneo de Bojack",
         pareja = "Gohan (Joven) y Trunks",
+        dialogo = {
+            { "Bojack", "¿Este torneo? Será vuestro funeral." },
+            { "Trunks", "Gohan, son piratas espaciales. Muy fuertes." },
+            { "Gohan", "Mi padre ya no está. Ahora protegemos nosotros la Tierra." },
+        },
         rivales = {
             { personaje = 166, nivel = 3, vida = 220, nombre = "Bojack" },
             { personaje = 187, nivel = 2, vida = 160, nombre = "Zangya" },
@@ -409,6 +510,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "El Súper Saiyajin Legendario",
         pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Broly", "¡Kakarottooo!" },
+            { "Vegeta", "Su poder no tiene fin... es el Súper Saiyajin Legendario." },
+            { "Goku", "Vegeta, sin ti no podré. ¡Ayúdame!" },
+        },
         rivales = {
             { personaje = 188, nivel = 3, vida = 220, nombre = "Broly" },
         },
@@ -427,6 +533,11 @@ return {
         saga = "Saga de las Películas",
         titulo = "El caos del Más Allá",
         pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Janemba", "(Se ríe y el Más Allá se retuerce a su alrededor.)" },
+            { "Vegeta", "Los muertos vuelven a la vida por culpa de este monstruo." },
+            { "Goku", "Si no lo paramos, se mezclarán los dos mundos." },
+        },
         rivales = {
             { personaje = 137, nivel = 3, vida = 280, nombre = "Janemba" },
             { personaje = 97, nivel = 2, vida = 160, nombre = "King Cold (resucitado)" },
@@ -448,6 +559,11 @@ return {
         saga = "Saga GT",
         titulo = "El parásito Baby",
         pareja = "Goku (GT) y Pan",
+        dialogo = {
+            { "Baby", "Los saiyajin destruyeron a mi pueblo. Ahora todos me obedeceréis." },
+            { "Pan", "¡Abuelo, ha controlado a todos los de la Tierra!" },
+            { "Goku", "Pan, quédate cerca. Vamos a sacarlo de ahí." },
+        },
         rivales = {
             { personaje = 140, nivel = 3, vida = 240, nombre = "Baby Vegeta" },
             { personaje = 31, nivel = 2, vida = 150, nombre = "Vegeta (controlado)" },
@@ -467,6 +583,11 @@ return {
         saga = "Saga GT",
         titulo = "Súper Androide 17",
         pareja = "Goku (GT) y Androide n.º 18",
+        dialogo = {
+            { "Súper 17", "Dos androides se han unido. Soy más fuerte que nunca." },
+            { "Androide n.º 18", "Ese ya no es mi hermano. Lo sacaré de ahí aunque tenga que golpearle." },
+            { "Goku", "Te ayudo, 18. ¡A por él!" },
+        },
         rivales = {
             { personaje = 101, nivel = 3, vida = 200, nombre = "Androide n.º 17 (Infierno)" },
             { personaje = 185, nivel = 2, vida = 150, nombre = "Dr. Gero" },
@@ -486,6 +607,11 @@ return {
         saga = "Saga GT",
         titulo = "Los Dragones Oscuros",
         pareja = "Goku (GT) y Vegeta (GT)",
+        dialogo = {
+            { "Omega Shenron", "Las Bolas de Dragón se han cargado de energía negativa. Soy el resultado." },
+            { "Vegeta", "Los dragones ya no conceden deseos. Ahora toca pelear con ellos." },
+            { "Goku", "Esta vez no hay deseo que nos salve. Solo nosotros." },
+        },
         rivales = {
             { personaje = 146, nivel = 3, vida = 220, nombre = "Eis Shenron" },
             { personaje = 145, nivel = 3, vida = 220, nombre = "Neo Shenron" },
@@ -506,6 +632,11 @@ return {
         saga = "Saga Super",
         titulo = "La resurrección de Freezer",
         pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Freezer", "He entrenado, monos. Admirad mi forma dorada." },
+            { "Vegeta", "¿Freezer entrenando? El mundo se ha vuelto loco." },
+            { "Goku", "Pues habrá que ver quién ha entrenado más." },
+        },
         rivales = {
             { personaje = 94, nivel = 3, vida = 220, nombre = "Freezer (Forma final)" },
             { personaje = 79, nivel = 2, vida = 140, nombre = "Soldado de Freezer" },
@@ -527,6 +658,11 @@ return {
         saga = "Saga Super",
         titulo = "El futuro de Trunks",
         pareja = "Trunks (DBS) y Vegeta",
+        dialogo = {
+            { "Goku Black", "Los mortales sois un error. Yo corregiré el mundo." },
+            { "Trunks", "En mi futuro ya no queda nada... por su culpa." },
+            { "Vegeta", "Tiene la cara de Kakarotto. Más ganas tengo de pegarle." },
+        },
         rivales = {
             { personaje = 99, nivel = 3, vida = 240, nombre = "Black Goku" },
             { personaje = 157, nivel = 3, vida = 220, nombre = "Zamas" },
@@ -546,6 +682,11 @@ return {
         saga = "Saga Super",
         titulo = "Los saiyajin del Universo 6",
         pareja = "Goku (Fin) y Gohan",
+        dialogo = {
+            { "Cabba", "En el Universo 6 también hay saiyajin. ¡Enséñame vuestra fuerza!" },
+            { "Gohan", "Son saiyajin de otro universo... y nada malos." },
+            { "Goku", "¡Qué emoción! Vamos a ver de qué son capaces." },
+        },
         rivales = {
             { personaje = 119, nivel = 3, vida = 180, nombre = "Caulifla (Súper Saiyajin)" },
             { personaje = 199, nivel = 3, vida = 200, nombre = "Kale (Súper Saiyajin)" },
@@ -567,6 +708,11 @@ return {
         saga = "Saga Super",
         titulo = "El Torneo del Poder",
         pareja = "Goku (Fin) y Vegeta",
+        dialogo = {
+            { "Jiren", "La fuerza lo es todo. Lo demás no importa." },
+            { "Vegeta", "Ese tipo no ha mostrado ni la mitad de su poder." },
+            { "Goku", "Si caemos, desaparece nuestro universo. ¡No podemos perder!" },
+        },
         rivales = {
             { personaje = 81, nivel = 3, vida = 240, nombre = "Toppo" },
             { personaje = 151, nivel = 4, vida = 380, nombre = "Jiren" },
@@ -587,6 +733,10 @@ return {
         saga = "Saga de los Gigantes",
         titulo = "La luna llena",
         pareja = "Krilin y Piccoro (Inicio)",
+        dialogo = {
+            { "Krilin", "¡No miréis la luna! ¡Se ha convertido en un mono gigante!" },
+            { "Piccoro", "Hay que cortarle la cola o derribarlo. Lo que llegue antes." },
+        },
         rivales = {
             { personaje = 12, nivel = 3, vida = 320, nombre = "Ozaru" },
         },
@@ -600,6 +750,10 @@ return {
         saga = "Saga de los Gigantes",
         titulo = "Slug gigante",
         pareja = "Goku (Med) y Piccoro (Fin)",
+        dialogo = {
+            { "Slug", "Ahora soy tan grande como una montaña. ¡Aplastaos solos!" },
+            { "Goku", "Grande, pero lento. ¡Vamos por los dos lados!" },
+        },
         rivales = {
             { personaje = 124, nivel = 3, vida = 340, nombre = "Slug (Gigante)" },
         },
@@ -613,6 +767,10 @@ return {
         saga = "Saga de los Gigantes",
         titulo = "Cell Max",
         pareja = "Gohan (Joven) y Piccoro (Fin)",
+        dialogo = {
+            { "Gohan", "Ese Cell no piensa: solo destruye. Y es enorme." },
+            { "Piccoro", "Atacad su cabeza. Es su punto débil." },
+        },
         rivales = {
             { personaje = 108, nivel = 4, vida = 380, nombre = "Cell Max" },
         },
@@ -626,6 +784,10 @@ return {
         saga = "Saga de los Gigantes",
         titulo = "El demonio de la flauta",
         pareja = "Goku (Fin) y Gohan",
+        dialogo = {
+            { "Gohan", "Esa flauta despertó a un demonio dormido." },
+            { "Goku", "Cuanto más tardemos, más fuerte se hará. ¡Rápido!" },
+        },
         rivales = {
             { personaje = 195, nivel = 4, vida = 380, nombre = "Hildegarn" },
         },
@@ -639,6 +801,11 @@ return {
         saga = "Saga de los Gigantes",
         titulo = "El Ozaru dorado",
         pareja = "Goku (GT) y Vegeta (GT)",
+        dialogo = {
+            { "Baby", "¡Ozaru dorado! ¡Nadie puede pararme ahora!" },
+            { "Vegeta", "Kakarotto, una vez fui un mono así. Sé cómo pararlo." },
+            { "Goku", "Pues guíanos, Vegeta. ¡Vamos!" },
+        },
         rivales = {
             { personaje = 143, nivel = 4, vida = 400, nombre = "Súper Baby (Ozaru)" },
         },

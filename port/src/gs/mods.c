@@ -886,6 +886,14 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
                 k++;
             }
     }
+    {   extern int CoopBoss_Flash(void);
+        int f = CoopBoss_Flash();
+        if (f > 0) { /* a boss transforms */
+            unsigned a = f > 20 ? 0xFFu : (unsigned)(f * 255 / 20);
+            coop_fill(cx - 170, MODS_HUD_H * 0.26f - 6, 340, 40, 0x00000000u | (a * 0xB0 / 255), 8);
+            coop_text(cx, MODS_HUD_H * 0.26f, "\xC2\xA1EL JEFE SE TRANSFORMA!", 0xFF5B5B00u | a, 22);
+        }
+    }
     if (CoopInf_Active()) {
         int wave = CoopInf_Wave() + 1, boss = wave % 5 == 0;
         coop_fill(cx - 90, 6, 180, 38, 0x000000C8u, 6);

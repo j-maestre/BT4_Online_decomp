@@ -299,6 +299,9 @@ s32 TagBattle_ConfigureLocal(void) {
                     BattleSetup_SetMember(i,1+j,chara,costume,0,levels[level<0?0:level>4?4:level],(f32)hp,NULL);
                 }
                 fprintf(stderr,"coop: rival %d has %d reinforcements\n",i,n);
+                {   extern int PortCoop_Transform(int,int);extern void CoopBoss_Set(s32,s32,s32);
+                    CoopBoss_Set(i,0,PortCoop_Transform(k,-1));
+                    for(j=0;j<n;++j)CoopBoss_Set(i,1+j,PortCoop_Transform(k,j)); } /* (bosses that transform) */
             }
         }
         {   extern s32 CoopRevive_Active(void);extern void CoopRevive_SetupPlayer(s32,s32,s32,s32);

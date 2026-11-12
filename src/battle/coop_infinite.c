@@ -18,6 +18,7 @@
 #include "battle/btl_char_member.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef PORT
 extern s32 TagBattle_Team(s32 a);
@@ -152,6 +153,7 @@ static s32 sRevActive[10];   /* the member fighting last step (a change: the rev
 static s32 sRevWarp[10];     /* how long a partner far away has held guard: a second, and it appears beside */
 static s32 sRevNeed[10];     /* how long this fallen player's revive takes (its helper's level reward) */
 static s32 sLvFoePct = 100;  /* the chapter's difficulty: the rivals' damage, % */
+static s32 sBossPct[10][6], sBossInit[10][6], sBossFlash; /* bosses that transform (CoopBoss_Set) */
 /* The level rewards of "Mi personaje" (port/src/coop_story.c lists them): level 10 revives a partner in two seconds,
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
@@ -180,6 +182,7 @@ void CoopRevive_SetupPlayer(s32 side, s32 chara, s32 costume, s32 level) {
 void CoopRevive_Update(void) {
     s32 d, h, n = TagBattle_Count();
 
+    if (sBossFlash > 0) sBossFlash--;
     if (!sRevOn || !TagBattle_Active()) return;
     for (d = 0; d < n && d < 10; d++) {
         BtlMemberChr *down = BtlChar_Get(d);
@@ -320,11 +323,19 @@ void CoopLv_Configure(s32 on) {
     sLvRivalDamage = 0;
     sLvAttacker = -1;
     sLvFoePct = 100;
+    memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
 }
 void CoopLv_SetLevel(s32 actor, s32 level) { if (actor >= 0 && actor < 10) sLvLevel[actor] = level < 0 ? 0 : level > 100 ? 100 : level; }
 s32 CoopLv_Active(void) { return sLvOn && TagBattle_Active(); }
 /* the chapter's difficulty (src/battle/battle_work.c): the rivals' damage to the players, % */
+/* A rival's member that transforms (port/src/coop_story.c, "transforma"): below `pct` % of the health it started
+   with, the hit that takes it there finishes it, and its next form, the member behind, comes in at once. */
+void CoopBoss_Set(s32 actor, s32 member, s32 pct) {
+    if (actor >= 0 && actor < 10 && member >= 0 && member < 6) sBossPct[actor][member] = pct;
+}
+/* For the HUD (port/src/gs/mods.c): steps left of the "transforms" notice. */
+s32 CoopBoss_Flash(void) { return sBossFlash; }
 void CoopLv_SetFoeDamage(s32 pct) { sLvFoePct = pct < 50 ? 50 : pct > 300 ? 300 : pct; }
 s32 CoopLv_Level(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvLevel[actor] : 0; }
 /* who strikes, around one hit (src/battle/btl_char_hit.c, btl_char_coll_b.c): set and cleared within the same call */
@@ -342,6 +353,17 @@ s32 CoopLv_ScaleDamage(BtlMemberChr *chr, s32 amount) {
     }
     if (sLvLevel[v] > 0) amount = amount * CoopLv_TakenPct(sLvLevel[v]) / 100;
     if (sLvLevel[v] >= 60) amount = amount * 90 / 100; /* (the level 60 reward) */
+    if (TagBattle_Team(v) == 1 && chr->active >= 0 && chr->active < 6 && sBossPct[v][chr->active] > 0
+        && chr->active + 1 < chr->memberCount) { /* a boss that transforms */
+        s32 m = chr->active, hp = BtlMember_GetGauge(chr, m)->health;
+        if (sBossInit[v][m] <= 0) sBossInit[v][m] = hp;
+        if (hp > 0 && (long long)(hp - amount) * 100 < (long long)sBossInit[v][m] * sBossPct[v][m]) {
+            amount = hp;
+            sBossPct[v][m] = 0;
+            sBossFlash = 120;
+            fprintf(stderr, "coop: rival %d transforms (member %d)\n", v, m);
+        }
+    }
     if (amount < 1) amount = 1;
     if (TagBattle_Team(v) == 1) sLvRivalDamage += amount;
     return amount;

@@ -37,7 +37,7 @@ extern const char *PortCoop_ChGrade(int i), *PortCoop_RewardLine(void);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
-enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK, CO_MISSIONS };
+enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK, CO_MISSIONS, CO_MAP };
 #define CO_ROWS 7 /* chapters on the list at once */
 
 typedef struct CoopScreen {
@@ -49,6 +49,7 @@ typedef struct CoopScreen {
 
 static CoopScreen *sCo;
 static void Co_PickOpen(void);
+static void Co_MapOpen(void);
 static s32 sCoPickBack, sCoPickTested; /* back from "Mi personaje": on its row */
 
 /* The game's 16-bit text for the message box, from UTF-8. */
@@ -131,7 +132,7 @@ static void Co_StartUpdate(void) {
         gPortCoopNote[0] = 0;
         if (sCo->start == 5) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
         else if (sCo->start == 4) { sCo->cur = 0; sCo->act = 0; Co_SetPage(CO_MISSIONS); }
-        else if (sCo->start == 0) Co_SetPage(CO_LIST);
+        else if (sCo->start == 0) Co_MapOpen();
         else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
         else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
     } else if (pad->gamePressed & PADG_TRIANGLE) {
@@ -214,17 +215,80 @@ static void Co_MissionsUpdate(void) {
     }
 }
 
+/* The saga map: the chapters' sagas (consecutive chapters with the same "saga") along a path, as the story mode's
+   map; a saga opens once its first chapter is unlocked, and entering it lists its chapters. */
+extern int PortCoop_ChDialogCount(int i);
+extern const char *PortCoop_ChDialogWho(int i, int k), *PortCoop_ChDialogText(int i, int k);
+#define CO_SAGAS 16
+static s32 sSagaFirst[CO_SAGAS], sSagaLen[CO_SAGAS], sSagaN, sCoSaga;
+static void Co_SagasBuild(void) {
+    s32 i, n = PortCoop_Count();
+    sSagaN = 0;
+    for (i = 0; i < n; i++) {
+        if (sSagaN > 0 && !strcmp(PortCoop_ChSaga(i), PortCoop_ChSaga(sSagaFirst[sSagaN - 1]))) { sSagaLen[sSagaN - 1]++; continue; }
+        if (sSagaN >= CO_SAGAS) { sSagaLen[sSagaN - 1]++; continue; }
+        sSagaFirst[sSagaN] = i; sSagaLen[sSagaN] = 1; sSagaN++;
+    }
+}
+static s32 Co_SagaOf(s32 chapter) {
+    s32 s;
+    for (s = 0; s < sSagaN; s++) if (chapter >= sSagaFirst[s] && chapter < sSagaFirst[s] + sSagaLen[s]) return s;
+    return 0;
+}
+static s32 Co_SagaDone(s32 s) { s32 i, d = 0; for (i = 0; i < sSagaLen[s]; i++) d += PortCoop_Done(sSagaFirst[s] + i) != 0; return d; }
+static void Co_MapOpen(void) {
+    s32 s;
+    Co_SagasBuild();
+    sCoSaga = 0;
+    for (s = 0; s < sSagaN; s++) if (PortCoop_Unlocked(sSagaFirst[s]) && Co_SagaDone(s) < sSagaLen[s]) { sCoSaga = s; break; }
+    Co_SetPage(CO_MAP);
+}
+static void Co_ListOpen(s32 saga) { /* on the first chapter of the saga still to win */
+    s32 i, first = sSagaFirst[saga];
+    sCoSaga = saga;
+    sCo->cur = first;
+    for (i = 0; i < sSagaLen[saga]; i++) if (PortCoop_Unlocked(first + i) && !PortCoop_Done(first + i)) { sCo->cur = first + i; break; }
+    sCo->top = sCo->cur - first >= CO_ROWS ? sCo->cur - CO_ROWS + 1 : first;
+    Co_SetPage(CO_LIST);
+}
+static void Co_MapUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, "Entrar");
+    Ps_Prompt(2, "Volver");
+    Ps_Prompt(1, "Releer");
+    if (sSagaN > 0) {
+        if ((pad->gameRepeat & (PADG_RIGHT | PADG_DOWN)) && sCoSaga + 1 < sSagaN) { sCoSaga++; Snd_PlaySe(1, 0); }
+        if ((pad->gameRepeat & (PADG_LEFT | PADG_UP)) && sCoSaga > 0) { sCoSaga--; Snd_PlaySe(1, 0); }
+    }
+    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && sSagaN > 0) {
+        if (PortCoop_Unlocked(sSagaFirst[sCoSaga])) { Snd_PlaySe(1, 1); Co_ListOpen(sCoSaga); }
+        else Snd_PlaySe(1, 2);
+    } else if (pad->gamePressed & PADG_TRIANGLE) {
+        Snd_PlaySe(1, 2);
+        Co_SetPage(CO_START);
+    } else if (pad->gamePressed & PADG_SQUARE) { /* the file read again (after editing it) */
+        Snd_PlaySe(1, 0);
+        PortCoop_Load();
+        Co_MapOpen();
+    }
+}
+
 static void Co_ListUpdate(void) {
     Pad *pad = &gPad[0];
     s32 count = PortCoop_Count();
 
+    s32 first = sSagaN > 0 ? sSagaFirst[sCoSaga] : 0, len = sSagaN > 0 ? sSagaLen[sCoSaga] : count;
+
     Ps_Prompt(0, count > 0 ? "Elegir" : "Volver");
     Ps_Prompt(2, "Volver");
-    Ps_Prompt(1, "Releer");
-    if (count > 0) {
-        Ps_Move(&sCo->cur, count);
+    if (count > 0) { /* within the saga */
+        s32 local = sCo->cur - first;
+        Ps_Move(&local, len);
+        sCo->cur = first + local;
         if (sCo->cur < sCo->top) sCo->top = sCo->cur;
         if (sCo->cur >= sCo->top + CO_ROWS) sCo->top = sCo->cur - CO_ROWS + 1;
+        if (sCo->top < first) sCo->top = first;
     }
     if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && count > 0 && !PortCoop_Unlocked(sCo->cur)) {
         Snd_PlaySe(1, 2); /* (locked: the one before it first) */
@@ -234,11 +298,7 @@ static void Co_ListUpdate(void) {
         Co_SetPage(CO_CHAPTER);
     } else if (pad->gamePressed & (PADG_TRIANGLE | ((count == 0) ? PADG_CROSS : 0))) {
         Snd_PlaySe(1, 2);
-        Co_SetPage(CO_START);
-    } else if (pad->gamePressed & PADG_SQUARE) { /* the file read again (after editing it) */
-        Snd_PlaySe(1, 0);
-        PortCoop_Load();
-        sCo->cur = sCo->top = 0;
+        Co_SetPage(CO_MAP); /* (back to the map, on this saga) */
     }
 }
 
@@ -249,6 +309,13 @@ static s32 Co_Diff(void) { s32 d = Port_Setting("coop_dificultad", 0); return d 
 static void Co_ChapterUpdate(void) {
     Pad *pad = &gPad[0];
 
+    if (sCo->act < PortCoop_ChDialogCount(sCo->cur)) { /* the conversation before the battle */
+        Ps_Prompt(0, "Siguiente");
+        Ps_Prompt(2, "Saltar");
+        if (pad->gamePressed & (PADG_CROSS | PADG_START)) { sCo->act++; Snd_PlaySe(1, 0); sCo->pageFrom = sCo->frames - 6; }
+        else if (pad->gamePressed & PADG_TRIANGLE) { sCo->act = PortCoop_ChDialogCount(sCo->cur); Snd_PlaySe(1, 2); }
+        return;
+    }
     Ps_Prompt(0, "Crear sala");
     Ps_Prompt(2, "Volver");
     if (pad->gameRepeat & (PADG_LEFT | PADG_RIGHT)) { /* the difficulty */
@@ -446,13 +513,52 @@ static void Co_Draw(void) {
         }
         sprintf(line, "Victorias en Extremo: %d. Izquierda/derecha: misiones.", PortStat(9));
         box = line;
+    } else if (sCo->page == CO_MAP) {
+        s32 s, rows = (sSagaN + 2) / 3;
+        f32 step = rows > 3 ? 236.0f / (f32)rows : 78.0f, nw = 136.0f, nh = step - 26.0f;
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Mapa de sagas", 1.3f, 300.0f, 0x80);
+        for (s = 0; s < sSagaN; s++) { /* the path first, under the sagas */
+            s32 r = s / 3, c = (r & 1) ? 2 - s % 3 : s % 3, r2, c2;
+            f32 x = 40.0f + slide + c * 156.0f + nw * 0.5f, y = 76.0f + r * step + nh * 0.5f, x2, y2;
+            u32 col = PortCoop_Unlocked(sSagaFirst[s]) ? Ps_Rgba(255, 213, 91, 0x70) : Ps_Rgba(120, 120, 120, 0x50);
+            if (s + 1 >= sSagaN) break;
+            r2 = (s + 1) / 3; c2 = (r2 & 1) ? 2 - (s + 1) % 3 : (s + 1) % 3;
+            x2 = 40.0f + slide + c2 * 156.0f + nw * 0.5f; y2 = 76.0f + r2 * step + nh * 0.5f;
+            if (r2 == r) Ps_Rect(x < x2 ? x : x2, y - 2.0f, x < x2 ? x2 : x, y + 2.0f, col, col);
+            else Ps_Rect(x - 2.0f, y, x + 2.0f, y2, col, col);
+        }
+        for (s = 0; s < sSagaN; s++) {
+            s32 r = s / 3, c = (r & 1) ? 2 - s % 3 : s % 3, open = PortCoop_Unlocked(sSagaFirst[s]), done = Co_SagaDone(s);
+            f32 x0 = 40.0f + slide + c * 156.0f, y0 = 76.0f + r * step;
+            const char *name = PortCoop_ChSaga(sSagaFirst[s]);
+            char prog[48];
+            if (!strncmp(name, "Saga ", 5)) name += 5;
+            if (!strncmp(name, "de las ", 7)) name += 7; else if (!strncmp(name, "de los ", 7)) name += 7; else if (!strncmp(name, "de ", 3)) name += 3;
+            Ps_Pill(s == sCoSaga ? TBO_KIT_SEL : TBO_KIT_BAR, x0 - (s == sCoSaga ? 4.0f : 0.0f), y0 - (s == sCoSaga ? 3.0f : 0.0f),
+                    x0 + nw + (s == sCoSaga ? 4.0f : 0.0f), y0 + nh + (s == sCoSaga ? 3.0f : 0.0f), open ? 0x80 : 0x48);
+            Ps_Align(1);
+            Ps_Text(x0 + nw * 0.5f, y0 + 4.0f, open ? (char *)name : "? ? ?", 0.48f, nw - 10.0f, s == sCoSaga ? 1 : open ? 0 : 4);
+            if (!open) sprintf(prog, "Bloqueada");
+            else if (done >= sSagaLen[s]) sprintf(prog, "Completada");
+            else sprintf(prog, "%d / %d", done, sSagaLen[s]);
+            Ps_Text(x0 + nw * 0.5f, y0 + nh - 18.0f, prog, 0.40f, nw - 10.0f, !open ? 4 : done >= sSagaLen[s] ? 5 : 3);
+            Ps_Align(0);
+        }
+        if (sSagaN > 0) {
+            s32 open = PortCoop_Unlocked(sSagaFirst[sCoSaga]);
+            sprintf(line, open ? "%.40s: %d cap\303\255tulos, %d superados. X: entrar. Cuadrado: volver a leer los cap\303\255tulos."
+                               : "%.40s: bloqueada. Superad la saga anterior para abrirla.",
+                    PortCoop_ChSaga(sSagaFirst[sCoSaga]), sSagaLen[sCoSaga], Co_SagaDone(sCoSaga));
+            box = line;
+        } else box = "Revisa historia_coop/capitulos.lua junto al juego. Cuadrado: leerlo otra vez.";
     } else if (sCo->page == CO_LIST) {
-        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
+        s32 first = sSagaN > 0 ? sSagaFirst[sCoSaga] : 0, end = sSagaN > 0 ? first + sSagaLen[sCoSaga] : count;
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), sSagaN > 0 ? (char *)PortCoop_ChSaga(first) : "Historia cooperativa", 1.3f, 380.0f, 0x80);
         if (count == 0) {
             Co_Wrap(50.0f + slide, 100.0f, PortCoop_Error(), 0.55f, 400.0f, 20.0f, 6, 4);
             box = "Revisa historia_coop/capitulos.lua junto al juego. Cuadrado: leerlo otra vez.";
         } else {
-            for (i = sCo->top; i < count && i < sCo->top + CO_ROWS; i++) {
+            for (i = sCo->top; i < end && i < sCo->top + CO_ROWS; i++) {
                 s32 open = PortCoop_Unlocked(i);
                 char done[40], *value;
                 sprintf(done, PortCoop_ChGrade(i)[0] ? "Nota %s" : "Completado", PortCoop_ChGrade(i));
@@ -461,14 +567,27 @@ static void Co_Draw(void) {
                 Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
                        i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
             }
-            if (sCo->top > 0) Ps_Text(220.0f + slide, 66.0f, "...", 0.5f, 40.0f, 4);
-            if (sCo->top + CO_ROWS < count) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
+            if (sCo->top > first) Ps_Text(220.0f + slide, 66.0f, "...", 0.5f, 40.0f, 4);
+            if (sCo->top + CO_ROWS < end) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
             box = PortCoop_Unlocked(sCo->cur)
-                ? "Elige un cap\303\255tulo. Cada uno que super\303\251is desbloquea el siguiente. Cuadrado: volver a leer los cap\303\255tulos."
+                ? "Elige un cap\303\255tulo. Cada uno que super\303\251is desbloquea el siguiente. Tri\303\241ngulo: volver al mapa."
                 : "Bloqueado: primero ten\303\251is que superar el cap\303\255tulo anterior.";
         }
     } else {
         s32 c = sCo->cur, k;
+        if (sCo->act < PortCoop_ChDialogCount(c)) { /* the conversation */
+            Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), (char *)PortCoop_ChTitle(c), 1.1f, 380.0f, 0x80);
+            Ps_Text(50.0f + slide, 62.0f, (char *)PortCoop_ChSaga(c), 0.5f, 400.0f, 3);
+            Ps_Pill(TBO_KIT_BAR, 36.0f + slide, 112.0f, 446.0f + slide, 250.0f, 0x70);
+            Ps_Text(54.0f + slide, 122.0f, (char *)PortCoop_ChDialogWho(c, sCo->act), 0.72f, 380.0f, 1);
+            Co_Wrap(54.0f + slide, 152.0f, PortCoop_ChDialogText(c, sCo->act), 0.6f, 380.0f, 22.0f, 4, 0);
+            sprintf(line, "%d / %d", sCo->act + 1, PortCoop_ChDialogCount(c));
+            Ps_Align(2); Ps_Text(436.0f + slide, 230.0f, line, 0.4f, 60.0f, 4); Ps_Align(0);
+            box = "X: siguiente. Tri\303\241ngulo: saltar la conversaci\303\263n.";
+            PortOnline_Raw(0);
+            MsgWin_PortDrawStringHd(Co_Box(box));
+            return;
+        }
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), (char *)PortCoop_ChTitle(c), 1.1f, 380.0f, 0x80);
         Ps_Text(50.0f + slide, 62.0f, (char *)PortCoop_ChSaga(c), 0.5f, 400.0f, 3);
         Co_Wrap(50.0f + slide, 82.0f, PortCoop_ChIntro(c), 0.52f, 410.0f, 18.0f, 6, 0);
@@ -518,9 +637,11 @@ s32 PortCoop_Run(void) {
     if (sCoPickBack) { sCo->start = 5; sCoPickBack = 0; }
     else if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
     else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
-    else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on the list */
+    else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on its saga's list */
+        Co_SagasBuild();
+        sCoSaga = Co_SagaOf(before);
         sCo->cur = before;
-        sCo->top = before >= CO_ROWS ? before - CO_ROWS + 1 : 0;
+        sCo->top = before - sSagaFirst[sCoSaga] >= CO_ROWS ? before - CO_ROWS + 1 : sSagaFirst[sCoSaga];
         sCo->page = CO_LIST;
     }
     PortCoop_Select(-1); /* (an ordinary room until a chapter is chosen again) */
@@ -542,6 +663,7 @@ s32 PortCoop_Run(void) {
             else if (sCo->page == CO_LIST) Co_ListUpdate();
             else if (sCo->page == CO_PICK) Co_PickUpdate();
             else if (sCo->page == CO_MISSIONS) Co_MissionsUpdate();
+            else if (sCo->page == CO_MAP) Co_MapUpdate();
             else Co_ChapterUpdate();
         }
         Port_MenuPage(52);
