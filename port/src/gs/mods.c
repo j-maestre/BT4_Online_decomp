@@ -87,6 +87,19 @@ void Mods_Lock(void) { pthread_mutex_lock(&sLock); }
 void Mods_Unlock(void) { pthread_mutex_unlock(&sLock); }
 int Mods_Count(void) { return sCount; }
 ModsInfo *Mods_Info(int i) { return i >= 0 && i < sCount ? &sInfo[i] : NULL; }
+/* A setting of the mod in that folder (its id in the mod's settings list), or `def` when the mod or the setting is not
+   there (port/src/mods_game.c: the defence drill reads the trainer mod's switches). */
+double Mods_FolderSetting(const char *folder, const char *id, double def) {
+    int i, k;
+    double v = def;
+    Mods_Lock();
+    for (i = 0; i < sCount; i++)
+        if (!strcmp(sInfo[i].folder, folder))
+            for (k = 0; k < sInfo[i].settings; k++)
+                if (!strcmp(sInfo[i].set[k].id, id)) v = sInfo[i].set[k].value;
+    Mods_Unlock();
+    return v;
+}
 /* Whether the mod in that folder is there and switched on in F1 > Mods (port/src/mods_game.c: the defence drill). */
 int Mods_FolderEnabled(const char *folder) {
     int i, on = 0;

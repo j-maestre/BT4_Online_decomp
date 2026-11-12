@@ -355,6 +355,8 @@ s32 CoopLv_DamageShareMille(s32 actor) {
     if (!sLvOn || actor < 0 || actor >= 10 || sLvRivalDamage <= 0) return 0;
     return (s32)((long long)sLvDealt[actor] * 1000 / sLvRivalDamage);
 }
+/* the health this player took from the rivals in this battle (the statistics, port/src/coop_story.c) */
+s32 CoopLv_Dealt(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvDealt[actor] : 0; }
 s32 CoopLv_Revives(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvRevives[actor] : 0; }
 s32 CoopLv_Downs(s32 actor) { return sLvOn && actor >= 0 && actor < 10 ? sLvDowns[actor] : 0; }
 #endif

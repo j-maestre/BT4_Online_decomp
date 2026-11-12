@@ -341,13 +341,172 @@ int PortCoop_ChBestDiff(int i) {
 /* The last battle's results, for the results panel (src/menu/port_tbo.c): whole numbers by field. */
 enum { RES_VALID, RES_WON, RES_INFINITE, RES_WAVES, RES_GRADE, RES_SCORE, RES_SHARE, RES_REVIVES, RES_DOWNS, RES_ZP, RES_XP,
        RES_BEFORE, RES_AFTER, RES_MILLE, RES_DIFF, RES_MINE, RES_COUNT };
-static int sRes[RES_COUNT];
+static int sRes[RES_COUNT], sResCaps;
+int PortCoop_ResultCapsules(void) { return sResCaps; }
 int PortCoop_Result(int field) { return field >= 0 && field < RES_COUNT ? sRes[field] : 0; }
 const char *PortCoop_ResultGrade(void) { return kGrades[sRes[RES_GRADE] >= 0 && sRes[RES_GRADE] <= 7 ? sRes[RES_GRADE] : 0]; }
 void PortCoop_ResultSeen(void) { sRes[RES_VALID] = 0; }
 const char *PortCoop_RewardLine(void) { return sRewardLine; }
 /* The Z points earned by the last battle, once (src/menu/port_tbo.c pays them into the save). */
 int PortCoop_TakeZPoints(void) { int z = sRewardZp; sRewardZp = 0; return z; }
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Statistics, missions and capsules (src/menu/port_coop.c shows them). Everything in bt3_settings.txt:
+ * - coop_st_*: the totals of every co-op battle this player played.
+ * - Missions: three a day and three a week, the same for everyone that day (picked from the date), counted from the
+ *   battles' results; once done, claimed on the co-op screen for Z points, experience and capsules.
+ * - Capsules: an EXP capsule doubles the experience of the next battle with "Mi personaje", a Z capsule the Z points
+ *   of the next battle that gives some; each is used by itself, one at a time.
+ * ---------------------------------------------------------------------------------------------------------------- */
+#include <time.h>
+enum { MT_WIN, MT_REVIVE, MT_GRADE_A, MT_HARD, MT_WAVES, MT_HALF, MT_NODOWN, MT_MINE, MT_GRADE_S, MT_EXTREME, MT_COUNT };
+static const char *const kMisText[MT_COUNT] = {
+    "Gana %d capítulo%s", "Revive a tu compañero %d ve%s", "Consigue nota A o mejor %d ve%s",
+    "Gana %d capítulo%s en Difícil o Extremo", "Supera %d oleadas en el modo infinito",
+    "Haz más de la mitad del daño en %d victoria%s", "Gana %d capítulo%s sin caer",
+    "Juega %d combate%s con Mi personaje", "Consigue nota S o Z %d ve%s", "Gana %d capítulo%s en Extremo"};
+static const int kDayPool[8][2] = {{MT_WIN, 2}, {MT_REVIVE, 2}, {MT_GRADE_A, 1}, {MT_HARD, 1}, {MT_WAVES, 5}, {MT_HALF, 1},
+                                   {MT_NODOWN, 1}, {MT_MINE, 3}};
+static const int kWeekPool[8][2] = {{MT_WIN, 10}, {MT_REVIVE, 10}, {MT_GRADE_S, 3}, {MT_EXTREME, 1}, {MT_WAVES, 25},
+                                    {MT_NODOWN, 5}, {MT_MINE, 15}, {MT_HARD, 5}};
+static long mis_day(void) { /* days since 1970 in local time */
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    long y = t ? t->tm_year + 1900 : 1970, d = t ? t->tm_yday : 0;
+    return (y - 1970) * 365 + (y - 1969) / 4 + d;
+}
+static long mis_week(void) { return (mis_day() + 3) / 7; } /* (weeks from a Monday) */
+static unsigned mis_rand(unsigned *s) { *s = *s * 1103515245u + 12345u; return (*s >> 16) & 0x7FFF; }
+/* mission k (0..2 today's, 3..5 this week's): its kind and its goal */
+static void mis_pick(int k, int *kind, int *goal) {
+    int weekly = k >= 3, slot = k % 3, used[3], i, n = 0;
+    unsigned s = (unsigned)(weekly ? mis_week() * 7919 + 17 : mis_day() * 104729 + 3);
+    const int (*pool)[2] = weekly ? kWeekPool : kDayPool;
+    while (n <= slot) {
+        int j = (int)(mis_rand(&s) % 8), dup = 0;
+        for (i = 0; i < n; i++) if (used[i] == j) dup = 1;
+        if (!dup) used[n++] = j;
+    }
+    *kind = pool[used[slot]][0];
+    *goal = pool[used[slot]][1];
+}
+static void mis_key(char *out, int cap, int k, const char *what) { snprintf(out, cap, "coop_mis%d_%s", k, what); }
+/* today's and this week's counters, made new when the day or the week changed */
+static void mis_fresh(void) {
+    char key[32];
+    int k;
+    long day = mis_day(), week = mis_week();
+    if (Port_Setting("coop_mis_day", -1) != day) {
+        for (k = 0; k < 3; k++) { mis_key(key, sizeof(key), k, "n"); Port_SettingSave(key, 0); mis_key(key, sizeof(key), k, "ok"); Port_SettingSave(key, 0); }
+        Port_SettingSave("coop_mis_day", (int)day);
+    }
+    if (Port_Setting("coop_mis_week", -1) != week) {
+        for (k = 3; k < 6; k++) { mis_key(key, sizeof(key), k, "n"); Port_SettingSave(key, 0); mis_key(key, sizeof(key), k, "ok"); Port_SettingSave(key, 0); }
+        Port_SettingSave("coop_mis_week", (int)week);
+    }
+}
+int PortMis_Goal(int k) { int kind, goal; if (k < 0 || k > 5) return 0; mis_pick(k, &kind, &goal); return goal; }
+int PortMis_Progress(int k) {
+    char key[32];
+    int n;
+    if (k < 0 || k > 5) return 0;
+    mis_fresh();
+    mis_key(key, sizeof(key), k, "n");
+    n = Port_Setting(key, 0);
+    return n > PortMis_Goal(k) ? PortMis_Goal(k) : n;
+}
+int PortMis_Claimed(int k) { char key[32]; if (k < 0 || k > 5) return 0; mis_fresh(); mis_key(key, sizeof(key), k, "ok"); return Port_Setting(key, 0); }
+const char *PortMis_Text(int k) {
+    static char buf[6][96];
+    int kind, goal;
+    if (k < 0 || k > 5) return "";
+    mis_pick(k, &kind, &goal);
+    if (kind == MT_WAVES) snprintf(buf[k], sizeof(buf[k]), kMisText[kind], goal);
+    else if (kind == MT_REVIVE || kind == MT_GRADE_A || kind == MT_GRADE_S) snprintf(buf[k], sizeof(buf[k]), kMisText[kind], goal, goal == 1 ? "z" : "ces");
+    else snprintf(buf[k], sizeof(buf[k]), kMisText[kind], goal, goal == 1 ? "" : "s");
+    return buf[k];
+}
+/* the rewards: Z points, experience, capsules (0 EXP, 1 Z) */
+static void mis_reward(int k, int *zp, int *xp, int *capExp, int *capZp) {
+    *zp = k >= 3 ? 20000 : k == 2 ? 1500 : 3000;
+    *xp = k >= 3 ? 400 : 80;
+    *capExp = k == 2 ? (int)(mis_day() & 1) : k == 3 ? 1 : 0;
+    *capZp = k == 2 ? (int)!(mis_day() & 1) : k == 3 ? 1 : 0;
+}
+const char *PortMis_RewardText(int k) {
+    static char buf[6][96];
+    int zp, xp, ce, cz, n;
+    if (k < 0 || k > 5) return "";
+    mis_reward(k, &zp, &xp, &ce, &cz);
+    n = snprintf(buf[k], sizeof(buf[k]), "%d Puntos Z, %d EXP", zp, xp);
+    if (ce) n += snprintf(buf[k] + n, sizeof(buf[k]) - n, ", cápsula EXP");
+    if (cz) snprintf(buf[k] + n, sizeof(buf[k]) - n, ", cápsula Z");
+    return buf[k];
+}
+/* Hours left for today's missions, days for this week's. */
+int PortMis_HoursLeft(void) { time_t now = time(NULL); struct tm *t = localtime(&now); return t ? 24 - t->tm_hour : 24; }
+int PortMis_DaysLeft(void) { return 7 - (int)((mis_day() + 3) % 7); }
+int PortItem_Count(int which) { return Port_Setting(which ? "coop_cap_zp" : "coop_cap_exp", 0); }
+/* Claims a mission done: 1 when it paid now (its Z points through src/menu/menu_p_b.c, into the save). */
+int PortMis_Claim(int k) {
+    extern void PortCoop_AddMoney(int n);
+    char key[32];
+    int zp, xp, ce, cz;
+    if (k < 0 || k > 5 || PortMis_Claimed(k) || PortMis_Progress(k) < PortMis_Goal(k)) return 0;
+    mis_reward(k, &zp, &xp, &ce, &cz);
+    mis_key(key, sizeof(key), k, "ok");
+    Port_SettingSave(key, 1);
+    Port_SettingSave("coop_mi_xp", Port_Setting("coop_mi_xp", 0) + xp);
+    if (ce) Port_SettingSave("coop_cap_exp", PortItem_Count(0) + ce);
+    if (cz) Port_SettingSave("coop_cap_zp", PortItem_Count(1) + cz);
+    Port_SettingsWrite();
+    PortCoop_AddMoney(zp);
+    fprintf(stderr, "coop: mission %d claimed: %d Z points, %d EXP, capsules %d/%d\n", k, zp, xp, ce, cz);
+    return 1;
+}
+static void mis_add(int kind, int n) {
+    char key[32];
+    int k, mk, goal;
+    if (n <= 0) return;
+    mis_fresh();
+    for (k = 0; k < 6; k++) {
+        mis_pick(k, &mk, &goal);
+        if (mk != kind) continue;
+        mis_key(key, sizeof(key), k, "n");
+        Port_SettingSave(key, Port_Setting(key, 0) + n);
+    }
+}
+/* The statistics (src/menu/port_coop.c). */
+enum { ST_BATTLES, ST_WINS, ST_MINE, ST_DAMAGE, ST_REVIVES, ST_DOWNS, ST_BEST, ST_GRADE_S, ST_WAVES, ST_EXTREME, ST_ZP, ST_COUNT };
+static const char *const kStatKey[ST_COUNT] = {"coop_st_battles", "coop_st_wins", "coop_st_mine", "coop_st_damage",
+    "coop_st_revives", "coop_st_downs", "coop_st_best", "coop_st_grade_s", "coop_st_waves", "coop_st_extreme", "coop_st_zp"};
+int PortStat(int k) { return k >= 0 && k < ST_COUNT ? Port_Setting(kStatKey[k], 0) : 0; }
+const char *PortStat_BestGrade(void) { int g = PortStat(ST_BEST); return g >= 1 && g <= 7 ? kGrades[g] : "-"; }
+static void stat_add(int k, int n) { if (n) Port_SettingSave(kStatKey[k], PortStat(k) + n); }
+/* After each co-op battle (rpg_reward): the statistics and the missions. */
+static void rpg_count(int won, int grade, int share, int revives, int downs, int dealt) {
+    stat_add(ST_BATTLES, 1);
+    stat_add(ST_WINS, won);
+    stat_add(ST_MINE, sUsingMine);
+    stat_add(ST_DAMAGE, dealt);
+    stat_add(ST_REVIVES, revives);
+    stat_add(ST_DOWNS, downs);
+    stat_add(ST_ZP, sRewardZp);
+    if (grade > PortStat(ST_BEST)) Port_SettingSave(kStatKey[ST_BEST], grade);
+    stat_add(ST_GRADE_S, grade >= 6);
+    if (sInfinite && sInfWaves > PortStat(ST_WAVES)) Port_SettingSave(kStatKey[ST_WAVES], sInfWaves);
+    stat_add(ST_EXTREME, won && sDiff == 2);
+    mis_add(MT_WIN, won);
+    mis_add(MT_REVIVE, revives);
+    mis_add(MT_GRADE_A, grade >= 5);
+    mis_add(MT_GRADE_S, grade >= 6);
+    mis_add(MT_HARD, won && sDiff >= 1);
+    mis_add(MT_EXTREME, won && sDiff == 2);
+    mis_add(MT_WAVES, sInfinite ? sInfWaves : 0);
+    mis_add(MT_HALF, won && share > 500);
+    mis_add(MT_NODOWN, won && downs == 0);
+    mis_add(MT_MINE, sUsingMine);
+}
 
 static void rpg_reward(int won) {
     extern int TagBattle_LocalActor(void), CoopLv_DamageShareMille(int), CoopLv_Revives(int), CoopLv_Downs(int);
@@ -376,6 +535,14 @@ static void rpg_reward(int won) {
         sRewardZp = 0;
     }
     if (!sUsingMine) xp = 0; /* (the original fighter: no experience; the grade and the Z points all the same) */
+    {   int capExp = 0, capZp = 0; /* the capsules, by themselves: one each, when it doubles something */
+        if (xp > 0 && PortItem_Count(0) > 0) { xp *= 2; capExp = 1; Port_SettingSave("coop_cap_exp", PortItem_Count(0) - 1); }
+        if (sRewardZp > 0 && PortItem_Count(1) > 0) { sRewardZp *= 2; capZp = 1; Port_SettingSave("coop_cap_zp", PortItem_Count(1) - 1); }
+        sResCaps = capExp | capZp << 1;
+    }
+    {   extern int CoopLv_Dealt(int);
+        rpg_count(won, grade, share, revives, downs, CoopLv_Dealt(me));
+    }
     before = PortRpg_MyLevel();
     if (xp) Port_SettingSave("coop_mi_xp", PortRpg_Xp() + xp);
     Port_SettingsWrite();
@@ -384,6 +551,8 @@ static void rpg_reward(int won) {
     if (sRewardZp) n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "+%d Puntos Z  ", sRewardZp);
     if (xp && n < (int)sizeof(sRewardLine))
         n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, after > before ? "+%d EXP: ¡nivel %d!" : "+%d EXP (nivel %d)", xp, after);
+    if (sResCaps && n < (int)sizeof(sRewardLine))
+        n += snprintf(sRewardLine + n, sizeof(sRewardLine) - n, "  (cápsula x2)");
     sRes[RES_VALID] = 1; sRes[RES_WON] = won; sRes[RES_INFINITE] = sInfinite; sRes[RES_WAVES] = sInfWaves; sRes[RES_GRADE] = grade;
     sRes[RES_SCORE] = score; sRes[RES_SHARE] = share; sRes[RES_REVIVES] = revives; sRes[RES_DOWNS] = downs; sRes[RES_ZP] = sRewardZp;
     sRes[RES_XP] = xp; sRes[RES_BEFORE] = before; sRes[RES_AFTER] = after; sRes[RES_MILLE] = PortRpg_LevelMille();

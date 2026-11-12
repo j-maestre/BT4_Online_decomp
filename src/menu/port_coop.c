@@ -37,7 +37,7 @@ extern const char *PortCoop_ChGrade(int i), *PortCoop_RewardLine(void);
 extern s32 gPortTboCoop;
 char gPortCoopNote[160]; /* why the last room could not be made or joined (src/menu/port_tbo.c), shown on the first page */
 
-enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK };
+enum { CO_START, CO_LIST, CO_CHAPTER, CO_PICK, CO_MISSIONS };
 #define CO_ROWS 7 /* chapters on the list at once */
 
 typedef struct CoopScreen {
@@ -125,11 +125,12 @@ static void Co_StartUpdate(void) {
 
     Ps_Prompt(0, "Confirmar");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->start, 5);
+    Ps_Move(&sCo->start, 6);
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
-        if (sCo->start == 4) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
+        if (sCo->start == 5) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
+        else if (sCo->start == 4) { sCo->cur = 0; sCo->act = 0; Co_SetPage(CO_MISSIONS); }
         else if (sCo->start == 0) Co_SetPage(CO_LIST);
         else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
         else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
@@ -190,6 +191,27 @@ static void Co_PickOpen(void) {
     sCo->top = sCo->cur >= CO_ROWS ? sCo->cur - CO_ROWS / 2 : 0;
     if (sCo->top > sPickCount - CO_ROWS) sCo->top = sPickCount - CO_ROWS > 0 ? sPickCount - CO_ROWS : 0;
     Co_SetPage(CO_PICK);
+}
+
+/* "Misiones y estad\303\255sticas": today's and this week's missions (claimed with cross), and, left / right, the totals
+   (port/src/coop_story.c keeps both). */
+extern int PortMis_Goal(int k), PortMis_Progress(int k), PortMis_Claimed(int k), PortMis_Claim(int k);
+extern int PortMis_HoursLeft(void), PortMis_DaysLeft(void), PortItem_Count(int which), PortStat(int k);
+extern const char *PortMis_Text(int k), *PortMis_RewardText(int k), *PortStat_BestGrade(void);
+static void Co_MissionsUpdate(void) {
+    Pad *pad = &gPad[0];
+
+    Ps_Prompt(0, sCo->act ? "Volver" : "Reclamar");
+    Ps_Prompt(2, "Volver");
+    if (pad->gamePressed & (PADG_LEFT | PADG_RIGHT)) { sCo->act = !sCo->act; Snd_PlaySe(1, 0); }
+    if (!sCo->act) Ps_Move(&sCo->cur, 6);
+    if ((pad->gamePressed & (PADG_CROSS | PADG_START)) && !sCo->act) {
+        if (PortMis_Claim(sCo->cur)) Snd_PlaySe(1, 1); else Snd_PlaySe(1, 2);
+    } else if ((pad->gamePressed & PADG_TRIANGLE) || ((pad->gamePressed & PADG_CROSS) && sCo->act)) {
+        Snd_PlaySe(1, 2);
+        sCo->cur = 0; sCo->act = 0;
+        Co_SetPage(CO_START);
+    }
 }
 
 static void Co_ListUpdate(void) {
@@ -332,16 +354,21 @@ static void Co_Draw(void) {
             sprintf(rec[0], "R\303\251cord: %d", PortCoop_InfRecord(2));
             sprintf(rec[1], "R\303\251cord: %d", PortCoop_InfRecord(3));
             char mine[80], mineName[48];
-            Co_Row(60.0f + slide, 380.0f + slide, 136.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 166.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 202.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 232.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
+            char mis[40];
+            s32 k, ready = 0;
+            for (k = 0; k < 6; k++) if (!PortMis_Claimed(k) && PortMis_Progress(k) >= PortMis_Goal(k)) ready++;
+            if (ready) sprintf(mis, "\302\241%d para reclamar!", ready); else mis[0] = 0;
+            Co_Row(60.0f + slide, 380.0f + slide, 132.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 160.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 192.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 220.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 252.0f, "Misiones y estad\303\255sticas", ready ? mis : NULL, sCo->start == 4, 1);
             PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
             sprintf(mine, "%.40s  Nv %d", mineName, PortRpg_MyLevel());
-            Co_Row(60.0f + slide, 380.0f + slide, 268.0f, "Mi personaje", mine, sCo->start == 4, 5);
+            Co_Row(60.0f + slide, 380.0f + slide, 280.0f, "Mi personaje", mine, sCo->start == 5, 5);
             {   f32 x0 = 74.0f + slide, x1 = 366.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
-                Ps_Rect(x0, 296.0f, x1, 300.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
-                Ps_Rect(x0, 296.0f, fill, 300.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+                Ps_Rect(x0, 307.0f, x1, 311.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
+                Ps_Rect(x0, 307.0f, fill, 311.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
             }
         }
         {   s32 k, won = 0, top = 0;
@@ -351,15 +378,17 @@ static void Co_Draw(void) {
                 if (PortCoop_ChGrade(k)[0] == 'S' || PortCoop_ChGrade(k)[0] == 'Z') top++;
             }
             sprintf(prog, "Cap\303\255tulos superados: %d de %d   \302\267   Notas S o Z: %d", won, count, top);
-            Ps_Text(60.0f + slide, 120.0f, prog, 0.42f, 360.0f, 3);
+            Ps_Text(60.0f + slide, 116.0f, prog, 0.42f, 360.0f, 3);
         }
-        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 308.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 3, 5);
+        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 318.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 2, 5);
         else if (PortCoop_RewardLine()[0]) { /* the last battle's grade, Z points and experience */
             sprintf(line, "\303\232ltimo combate: %.120s", PortCoop_RewardLine());
-            Co_Wrap(50.0f + slide, 308.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
+            Co_Wrap(50.0f + slide, 318.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
         }
-        box = sCo->start == 4
+        box = sCo->start == 5
             ? Co_RewardsBox()
+            : sCo->start == 4
+            ? "Misiones diarias y semanales: Puntos Z, experiencia y c\303\241psulas. Y las estad\303\255sticas de tu personaje."
             : sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
             : sCo->start == 1
@@ -377,6 +406,46 @@ static void Co_Draw(void) {
         if (sCo->top + CO_ROWS < sPickCount) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
         box = "Elige qui\303\251n quieres ser. En la selecci\303\263n de personaje de la cooperativa saldr\303\241 una casilla m\303\241s, "
               "al final, con \303\251l: es tu personaje, con tu nivel. Su casilla normal sigue siendo el original.";
+    } else if (sCo->page == CO_MISSIONS && !sCo->act) {
+        char head[80];
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Misiones", 1.3f, 300.0f, 0x80);
+        for (i = 0; i < 6; i++) {
+            char value[40];
+            f32 y = (i < 3 ? 92.0f : 216.0f) + 28.0f * (i % 3);
+            if (i == 0 || i == 3) {
+                if (i == 0) sprintf(head, "Diarias  (se renuevan en %d h)", PortMis_HoursLeft());
+                else sprintf(head, "Semanales  (se renuevan en %d d\303\255a%s)", PortMis_DaysLeft(), PortMis_DaysLeft() == 1 ? "" : "s");
+                Ps_Text(50.0f + slide, y - 20.0f, head, 0.46f, 400.0f, 3);
+            }
+            if (PortMis_Claimed(i)) sprintf(value, "Hecho");
+            else if (PortMis_Progress(i) >= PortMis_Goal(i)) sprintf(value, "\302\241Reclamar!");
+            else sprintf(value, "%d / %d", PortMis_Progress(i), PortMis_Goal(i));
+            Co_Row(40.0f + slide, 420.0f + slide, y, (char *)PortMis_Text(i), value, i == sCo->cur,
+                   PortMis_Claimed(i) ? 4 : PortMis_Progress(i) >= PortMis_Goal(i) ? 1 : 3);
+        }
+        sprintf(line, "C\303\241psulas: %d de EXP, %d de Puntos Z (se usan solas en el siguiente combate)", PortItem_Count(0), PortItem_Count(1));
+        Ps_Text(50.0f + slide, 302.0f, line, 0.42f, 400.0f, 0);
+        sprintf(line, "Premio: %s. X: reclamar. Izquierda/derecha: estad\303\255sticas.", PortMis_RewardText(sCo->cur));
+        box = line;
+    } else if (sCo->page == CO_MISSIONS) {
+        static const char *names[11] = {"Combates jugados", "Victorias", "Con Mi personaje", "Da\303\261o total a los rivales",
+            "Compa\303\261eros revividos", "Veces ca\303\255do", "Mejor nota", "Notas S o Z", "Mejor modo infinito (oleadas)",
+            "Victorias en Extremo", "Puntos Z ganados"};
+        static const s32 order[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 10};
+        char mineName[48];
+        PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
+        sprintf(line, "Estad\303\255sticas de %.40s  (Nv %d)", mineName, PortRpg_MyLevel());
+        Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.1f), line, 1.1f, 400.0f, 0x80);
+        for (i = 0; i < 10; i++) {
+            char value[40];
+            s32 k = order[i];
+            if (k == 6) sprintf(value, "%s", PortStat_BestGrade());
+            else if (k == 1 && PortStat(0) > 0) sprintf(value, "%d (%d%%)", PortStat(1), PortStat(1) * 100 / PortStat(0));
+            else sprintf(value, "%d", PortStat(k));
+            Co_Row(40.0f + slide, 420.0f + slide, 70.0f + 24.0f * i, (char *)names[k], value, 0, k == 6 ? 1 : 3);
+        }
+        sprintf(line, "Victorias en Extremo: %d. Izquierda/derecha: misiones.", PortStat(9));
+        box = line;
     } else if (sCo->page == CO_LIST) {
         Ps_Heading(Ps_Left() + 50.0f, Ps_TextTop(32.0f, 1.3f), "Historia cooperativa", 1.3f, 300.0f, 0x80);
         if (count == 0) {
@@ -446,7 +515,7 @@ s32 PortCoop_Run(void) {
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
-    if (sCoPickBack) { sCo->start = 4; sCoPickBack = 0; }
+    if (sCoPickBack) { sCo->start = 5; sCoPickBack = 0; }
     else if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
     else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
     else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on the list */
@@ -472,6 +541,7 @@ s32 PortCoop_Run(void) {
             if (sCo->page == CO_START) Co_StartUpdate();
             else if (sCo->page == CO_LIST) Co_ListUpdate();
             else if (sCo->page == CO_PICK) Co_PickUpdate();
+            else if (sCo->page == CO_MISSIONS) Co_MissionsUpdate();
             else Co_ChapterUpdate();
         }
         Port_MenuPage(52);

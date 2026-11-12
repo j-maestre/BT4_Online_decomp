@@ -184,7 +184,7 @@ void PortTrain_Hit(int side, int kind, int eligible, int timer) {
 #define B_CHARGE 0x200
 #define B_UP 0x10
 #define B_LOCKON 0x4000
-static int sDrillOn, sDrillMix, sDrillRest, sDrillForced, sDrillSuper, sDrillZc, sDrillOffline, sDrillTraining, sDrillCheck;
+static int sDrillOn, sDrillMix, sDrillRest, sDrillForced, sDrillSuper, sDrillZc, sDrillOffline, sDrillTraining, sDrillCheck, sDrillRandom;
 /* Advanced Training (src/menu/port_advtrain.c) turns the drill on for its fights; the main menu turns it off. */
 void PortDrill_Force(int on) { sDrillForced = on != 0; }
 int PortDrill_Forced(void) { return sDrillForced; }
@@ -207,6 +207,10 @@ static void drill_settings(void) {
     if (sDrillRest > 90) sDrillRest = 90;
     sDrillSuper = Port_Setting("train_drill_super", 0);
     sDrillZc = Port_Setting("train_drill_zc", 1) != 0;
+    {   /* the trainer mod's own switch (mods/entrenador_contra_z, "mezcla"): melee and special attacks at random */
+        extern double Mods_FolderSetting(const char *folder, const char *id, double def);
+        sDrillRandom = Mods_FolderSetting("entrenador_contra_z", "mezcla", 0.0) != 0.0;
+    }
 }
 
 void PortDrill_BeginMatch(int offline) {
@@ -259,9 +263,17 @@ static void drill_technique(struct Drill *d) {
 static void drill_pick(struct Drill *d, int close) {
     unsigned r = drill_rand(d, 10);
     d->len = d->pos = 0;
-    if (sDrillMix == 2 || (sDrillMix == 1 && (close ? r == 9 : d->sinceTech > 90))) {
+    if (sDrillRandom && drill_rand(d, 100) < (close ? 35u : 70u)) { /* the mod's mix: a special now and then, either one */
+        int keep = sDrillSuper;
+        sDrillSuper = (int)drill_rand(d, 2);
+        drill_technique(d); d->sinceTech = 0;
+        sDrillSuper = keep;
+    } else if (sDrillRandom) {
+        goto melee;
+    } else if (sDrillMix == 2 || (sDrillMix == 1 && (close ? r == 9 : d->sinceTech > 90))) {
         drill_technique(d); d->sinceTech = 0;
     } else if (r <= 3) {
+    melee_rush:
         drill_presses(d, B_RUSH, 1 + (int)drill_rand(d, 5));                       /* rush of 1..5 hits */
     } else if (r <= 5) {
         drill_presses(d, B_RUSH, 1 + (int)drill_rand(d, 4));                       /* rush and a triangle finisher */
@@ -272,6 +284,15 @@ static void drill_pick(struct Drill *d, int close) {
         drill_presses(d, B_RUSH, 2); drill_add(d, B_RUSH, 18); drill_add(d, 0, 8); /* two hits and a charged one */
     } else {
         drill_presses(d, B_RUSH, 5); drill_presses(d, B_BLAST, 1);                 /* full rush */
+    }
+    if (0) {
+    melee:
+        r = drill_rand(d, 9);
+        if (r <= 3) goto melee_rush;
+        if (r <= 5) { drill_presses(d, B_RUSH, 1 + (int)drill_rand(d, 4)); drill_presses(d, B_BLAST, 1); }
+        else if (r == 6) { drill_add(d, B_RUSH, 22); drill_add(d, 0, 8); }
+        else if (r == 7) { drill_presses(d, B_RUSH, 2); drill_add(d, B_RUSH, 18); drill_add(d, 0, 8); }
+        else { drill_presses(d, B_RUSH, 5); drill_presses(d, B_BLAST, 1); }
     }
     d->left = d->len > 0 ? d->step[0].ticks : 0;
 }
@@ -293,7 +314,7 @@ void PortDrill_Input(int objId, int close, unsigned *buttons, float *x, float *y
     d->sinceTech++;
     if (d->pos < d->len) {                                   /* sending an attack */
         out |= drill_step(d);
-    } else if (!close && sDrillMix != 2 && !(sDrillMix == 1 && d->sinceTech > 90)) {
+    } else if (!close && (sDrillRandom ? d->sinceTech < 120 : sDrillMix != 2 && !(sDrillMix == 1 && d->sinceTech > 90))) {
         out |= B_DASH;                                       /* far: dash at the opponent */
         if (d->rest > 8) d->rest = 8;
     } else if (--d->rest <= 0) {                             /* the pause is over: next attack */

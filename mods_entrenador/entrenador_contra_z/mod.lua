@@ -137,6 +137,8 @@ return {
           choices = { "Abajo centro", "Abajo izquierda", "Abajo derecha" }, default = 2 },
         { id = "lines", label = "Líneas de historial", type = "slider", min = 0, max = 5, step = 1, default = 2 },
         { id = "opacity", label = "Opacidad del panel", type = "slider", min = 40, max = 100, step = 5, default = 90 },
+        { id = "mezcla", label = "CPU: mezcla golpes y especiales al azar", type = "toggle", default = false,
+          tip = "Con el entrenamiento de esquiva (F1 > Técnicas) activo, la CPU mezcla golpes y ataques especiales sin avisar." },
         { id = "reset", label = "Reiniciar contadores (cambiar)", type = "toggle", default = false,
           tip = "Cámbialo de posición para poner los contadores a cero." },
     },
