@@ -222,7 +222,13 @@ static const int kDiffHealth[3] = {100, 140, 180}, kDiffDamage[3] = {100, 125, 1
 static const int kDiffZp[3] = {100, 150, 200}, kDiffAi[3] = {0, 1, 2};
 int PortCoop_Difficulty(void) { return sSelected >= 0 ? sDiff : 0; }
 void PortCoop_SetDifficulty(int d) { sDiff = d < 0 ? 0 : d > 2 ? 2 : d; if (!sJoining) { Port_SettingSave("coop_dificultad", sDiff); Port_SettingsWrite(); } }
-int PortCoop_FoeDamagePct(void) { return kDiffDamage[PortCoop_Difficulty()]; }
+/* Three or more rivals at once against the two of you: softer (less health, less damage, an AI a level lower), or
+   those chapters are hardly winnable. The same on both sides (the joiner has the chapter from the announcement). */
+static int crowd(void) { return sSelected >= 0 && !sInfinite && sCh[sSelected].foes >= 3; }
+static int crowd_health(int h) { return crowd() ? h * 70 / 100 : h; }
+static int crowd_level(int l) { return crowd() && l > 0 ? l - 1 : l; }
+int PortCoop_Crowd(void) { return crowd(); }
+int PortCoop_FoeDamagePct(void) { return kDiffDamage[PortCoop_Difficulty()] * (crowd() ? 75 : 100) / 100; }
 const char *PortCoop_DifficultyName(int d) { static const char *n[3] = {"Normal", "Dif\303\255cil", "Extremo"}; return n[d < 0 ? 0 : d > 2 ? 2 : d]; }
 const char *PortCoop_AnnounceId(void) {
     static char buf[80];
@@ -275,9 +281,9 @@ int PortCoop_Reserve(int k, int j, int *chara, int *costume, int *level, int *he
     if (r < 0) return 0;
     *chara = sCh[sSelected].reserve[r].chara;
     *costume = sCh[sSelected].reserve[r].costume;
-    *level = sCh[sSelected].reserve[r].level + kDiffAi[PortCoop_Difficulty()];
+    *level = crowd_level(sCh[sSelected].reserve[r].level + kDiffAi[PortCoop_Difficulty()]);
     if (*level > 4) *level = 4;
-    *health = sCh[sSelected].reserve[r].health * kDiffHealth[PortCoop_Difficulty()] / 100;
+    *health = crowd_health(sCh[sSelected].reserve[r].health * kDiffHealth[PortCoop_Difficulty()] / 100);
     return 1;
 }
 int PortCoop_FoeChara(int k) { return sInfinite ? (k >= 0 && k < sInfinite ? CoopInf_FirstChara(k) : -1) : foe(k) ? foe(k)->chara : -1; }
@@ -289,8 +295,8 @@ int PortCoop_Transform(int k, int j) {
     r = reserve_index(k, j);
     return r >= 0 ? sCh[sSelected].reserve[r].transform : 0;
 }
-int PortCoop_FoeLevel(int k) { int l = (foe(k) ? foe(k)->level : 2) + kDiffAi[PortCoop_Difficulty()]; return l > 4 ? 4 : l; }
-int PortCoop_FoeHealth(int k) { return (foe(k) ? foe(k)->health : 100) * kDiffHealth[PortCoop_Difficulty()] / 100; }
+int PortCoop_FoeLevel(int k) { int l = crowd_level((foe(k) ? foe(k)->level : 2) + kDiffAi[PortCoop_Difficulty()]); return l > 4 ? 4 : l; }
+int PortCoop_FoeHealth(int k) { return crowd_health((foe(k) ? foe(k)->health : 100) * kDiffHealth[PortCoop_Difficulty()] / 100); }
 int PortCoop_Stage(void) { return sSelected >= 0 ? sCh[sSelected].stage : -1; }
 int PortCoop_Bgm(void) { return sSelected >= 0 ? sCh[sSelected].bgm : -1; }
 int PortCoop_Time(void) { return sSelected >= 0 ? sCh[sSelected].time : 4; }

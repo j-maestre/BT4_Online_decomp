@@ -1171,6 +1171,10 @@ static void Tb_CoopPending(s32 live){
     if(what==1)Tb_CoopCreate();
     else{sTb->tagJoin=1;sTb->code[0]=0;sTb->codeLen=sTb->keyCol=sTb->keyRow=0;Tb_SetMode(TB_JOIN);}
 }
+/* Historia cooperativa: "Mi personaje" over the room (menu/port_coop.c), the room still polled meanwhile. */
+extern void PortCoop_RoomMe(void (*poll)(void), s32 (*stop)(void));
+static void Tb_RoomMePoll(void){Port_TagPoll();}
+static s32 Tb_RoomMeStop(void){return Port_TagPhase()!=1||(Port_TagError()[0]&&(Port_TagSeat()<0||Port_TagPhase()==6));}
 static void Tb_TagRoomUpdate(s32 live){
     Pad *pad=&gPad[0];s32 dir,local=!strcmp(Port_TagCode(),"LOCAL0");
     Port_TagPoll();
@@ -1232,6 +1236,8 @@ static void Tb_TagRoomUpdate(s32 live){
         else if(c>=32&&c<127&&sTb->tagChatLen<150){sTb->tagChat[sTb->tagChatLen++]=c;sTb->tagChat[sTb->tagChatLen]=0;}}
         if(pad->gamePressed&PADG_TRIANGLE){sTb->tagChatTyping=0;Port_TextMode(0);}return;
     }
+    if(PortCoop_Active()&&!sTb->tagQuick&&Port_TagPhase()==1&&(pad->gamePressed&PADG_R2)){ /* "Mi personaje" without leaving */
+        Snd_PlaySe(1,1);PortCoop_RoomMe(Tb_RoomMePoll,Tb_RoomMeStop);return;}
     if(Port_TagHost()){
         if(sTb->tagRoomAction){
             if(pad->gamePressed&PADG_CROSS){
@@ -2300,6 +2306,7 @@ static void Tb_DrawTagRoomText(void){
         else {Ps_Align(1);Ps_TextRaw(256,66,(char*)Port_TagCode(),.58f,180,1);Ps_Align(0);}
     }
     if(bottom+48.0f<=320.0f){Ps_Align(1);Ps_Text(local?256:395-left*.5f,Ps_TextTop(bottom+28.0f,.62f),Port_TagHost()?"Choose Fighters":"Waiting for host",.62f,188-left,sTb->tagRoomAction?1:0);Ps_Align(0);}
+    if(PortCoop_Active()&&!sTb->tagQuick){PortOnline_Raw(1);Ps_Align(2);Ps_Text(right-20,60,"R2: Mi personaje (mejoras, \303\241rbol, objetos...)",.40f,300,3);Ps_Align(0);PortOnline_Raw(0);}
 }
 static void Tb_DrawJoin(void) {
     s32 c;
@@ -5020,6 +5027,12 @@ s32 PortTbo_Run(void) {
             static s32 previewTick;
             if(++previewTick==60){extern void Port_TagCapture(void);Port_TagCapture();
                 fprintf(stderr,"tag text preview: room=1 chat=%d slots=%d\n",sTb->tagChatTyping,Port_TagSlots());}
+        }
+        if(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_ROOMME_TEST")&&sTb->mode==TB_TAG_ROOM&&live&&Port_TagPhase()==1){ /* (test) */
+            static s32 roomTick;extern void Port_TagUiCapture(int);++roomTick;
+            if(roomTick==60)Port_TagUiCapture(1);
+            if(roomTick==70)gPad[0].gamePressed=PADG_R2;
+            if(roomTick==90){Port_TagUiCapture(4);fprintf(stderr,"room me test: back in the room\n");}
         }
         if(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_VIDEO_TEST")&&live){
             static s32 videoMode=-1,videoTick;

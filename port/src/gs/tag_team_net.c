@@ -459,7 +459,7 @@ static int hover_col[TT_MAX_PLAYERS],hover_row[TT_MAX_PLAYERS],hover_chara[TT_MA
 static int lv_chara[TT_MAX_PLAYERS],lv_level[TT_MAX_PLAYERS],lv_pts[TT_MAX_PLAYERS][4],lv_hab[TT_MAX_PLAYERS];
 /* Each player's card, "#me:<level>:<title>:<best grade>:<name>", sent every few seconds in the room: shown by the
    names (src/menu/port_tbo.c) and in the battle (port/src/gs/mods.c). */
-static int me_level[TT_MAX_PLAYERS],me_title[TT_MAX_PLAYERS],me_grade[TT_MAX_PLAYERS],me_known[TT_MAX_PLAYERS];static char me_name[TT_MAX_PLAYERS][20];static Uint64 me_sent_at;
+static int me_level[TT_MAX_PLAYERS],me_title[TT_MAX_PLAYERS],me_grade[TT_MAX_PLAYERS],me_known[TT_MAX_PLAYERS],me_chara[TT_MAX_PLAYERS];static char me_name[TT_MAX_PLAYERS][20];static Uint64 me_sent_at;
 int Port_TagSeatLevel(int seat){
     extern int PortCoop_Active(void),PortRpg_PickLevel(void);
     if(!PortCoop_Active()||seat<0||seat>=TT_MAX_PLAYERS||seat>=Tt_Capacity(&state)||state.players[seat].cpu||state.players[seat].chara<0)return 0;
@@ -493,15 +493,21 @@ int Port_TagSeatCard(int seat,char *name,int ncap,char *line,int lcap){
     if(line)snprintf(line,lcap,"Nv %d  %s",me_level[seat],PortRpg_TitleName(me_title[seat]));
     return 1;
 }
+/* A seat's own fighter ("Mi personaje", from its card) and its level; -1 unknown. */
+int Port_TagSeatMine(int seat,int *level){
+    if(seat<0||seat>=TT_MAX_PLAYERS||!me_known[seat])return -1;
+    if(level)*level=me_level[seat];
+    return me_chara[seat];
+}
 static void me_send(void){ /* my card, every few seconds while in a co-op room */
-    extern int PortCoop_Active(void),PortRpg_MyLevel(void),PortRpg_Title(void),PortStat(int);extern const char *PortRpg_Name(void);
+    extern int PortCoop_Active(void),PortRpg_MyLevel(void),PortRpg_Title(void),PortStat(int),PortRpg_MyChara(void);extern const char *PortRpg_Name(void);
     void Port_TagChatSend(const char*);char line[96];int i;
     if(!PortCoop_Active()||Tt_Seat(&state,member)<0||state.phase>2||SDL_GetTicks()-me_sent_at<3000)return;
-    snprintf(line,sizeof(line),"#me:%d:%d:%d:",PortRpg_MyLevel(),PortRpg_Title(),PortStat(6));
+    snprintf(line,sizeof(line),"#me:%d:%d:%d:%d:",PortRpg_MyLevel(),PortRpg_Title(),PortStat(6),PortRpg_MyChara());
     for(i=0;PortRpg_Name()[i]&&i<16;++i){char c=PortRpg_Name()[i];if(c==':'||c<32||c>126)c=' ';line[strlen(line)+1]=0;line[strlen(line)]=c;}
     Port_TagChatSend(line);me_sent_at=SDL_GetTicks();
     {extern const char *PortCoop_RecordLine(void);if(PortCoop_RecordLine()[0]){snprintf(line,sizeof(line),"#rec:%s",PortCoop_RecordLine());Port_TagChatSend(line);}}
-    i=Tt_Seat(&state,member);me_known[i]=1;me_level[i]=PortRpg_MyLevel();me_title[i]=PortRpg_Title();me_grade[i]=PortStat(6);snprintf(me_name[i],20,"%s",PortRpg_Name());
+    i=Tt_Seat(&state,member);me_known[i]=1;me_level[i]=PortRpg_MyLevel();me_title[i]=PortRpg_Title();me_grade[i]=PortStat(6);me_chara[i]=PortRpg_MyChara();snprintf(me_name[i],20,"%s",PortRpg_Name());
 }
 void Port_TagHoverClear(void){int i;for(i=0;i<TT_MAX_PLAYERS;++i)hover_col[i]=hover_row[i]=hover_chara[i]=lv_chara[i]=-1;me_sent_at=0;hover_sent_col=hover_sent_row=hover_sent_seat=hover_sent_chara=-1;}
 int Port_TagHover(int seat,int *col,int *row,int *chara){
@@ -920,9 +926,9 @@ void Port_TagPoll(void){
             if(!strncmp(text,"#rec:",5)){extern void PortCoop_RecordHeard(const char*,const char*); /* the sender's record of the chapter */
                 if(seat>=0&&seat!=Tt_Seat(&state,member))PortCoop_RecordHeard(state.players[seat].name,text+5);
                 continue;}
-            if(!strncmp(text,"#me:",4)){int l=0,t=0,g=0,n=0; /* the sender's card */
-                if(seat>=0&&seat<TT_MAX_PLAYERS&&sscanf(text+4,"%d:%d:%d:%n",&l,&t,&g,&n)>=3&&n>0){
-                    me_known[seat]=1;me_level[seat]=l<0?0:l>100?100:l;me_title[seat]=t<0?0:t;me_grade[seat]=g<0?0:g>7?7:g;snprintf(me_name[seat],sizeof(me_name[seat]),"%s",text+4+n);}
+            if(!strncmp(text,"#me:",4)){int l=0,t=0,g=0,n=0,c=-1; /* the sender's card (1.0.7's without its fighter) */
+                if(seat>=0&&seat<TT_MAX_PLAYERS&&(sscanf(text+4,"%d:%d:%d:%d:%n",&l,&t,&g,&c,&n)>=4&&n>0||(c=-1,n=0,sscanf(text+4,"%d:%d:%d:%n",&l,&t,&g,&n)>=3&&n>0))){
+                    me_known[seat]=1;me_chara[seat]=c>=0&&c<512?c:-1;me_level[seat]=l<0?0:l>100?100:l;me_title[seat]=t<0?0:t;me_grade[seat]=g<0?0:g>7?7:g;snprintf(me_name[seat],sizeof(me_name[seat]),"%s",text+4+n);}
                 continue;}
             if(!strncmp(text,"#hov:",5)){int s=-1,c=-1,r=-1,f=-1; /* the character select: the cell the chooser is on, the fighter it shows (Port_TagHover) */
                 if(sscanf(text+5,"%d:%d:%d:%d",&s,&c,&r,&f)>=3&&s>=0&&s<TT_MAX_PLAYERS&&c>=0&&c<64&&r>=0&&r<64){hover_col[s]=c;hover_row[s]=r;hover_chara[s]=f>=0&&f<512?f:-1;}

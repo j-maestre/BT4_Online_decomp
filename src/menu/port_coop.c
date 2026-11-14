@@ -51,6 +51,7 @@ static CoopScreen *sCo;
 static void Co_PickOpen(void);
 static void Co_MapOpen(void);
 static s32 sCoPickBack, sCoPickTested, sCoFromMe; /* back from "Mi personaje": on its row */
+static s32 sCoRoom, sCoRoomDone; /* "Mi personaje" opened from inside a room (PortCoop_RoomMe) */
 
 /* The game's 16-bit text for the message box, from UTF-8. */
 static u16 *Co_Box(const char *utf8) {
@@ -365,7 +366,8 @@ static void Co_MeUpdate(void) {
     }
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
-        if (sCo->cur == 0) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
+        if (sCo->cur == 0 && sCoRoom) { Co_Note("El personaje se cambia fuera de la sala (aqu\303\255 s\303\255: nombre, t\303\255tulo, mejoras, \303\241rbol y objetos)."); Snd_PlaySe(1, 2); }
+        else if (sCo->cur == 0) { sCoPickBack = 1; Co_Leave(2); } /* the fight's select (port_screen.c) */
         else if (sCo->cur == 1) { Ps_Copy(sCoName, (char *)PortRpg_Name(), 20); sCo->act = 0; Co_SetPage(CO_NAME); }
         else if (sCo->cur == 3) { sCo->act = 0; Co_SetPage(CO_POINTS); }
         else if (sCo->cur == 4) { sCo->act = 0; Co_SetPage(CO_TREE); }
@@ -374,7 +376,8 @@ static void Co_MeUpdate(void) {
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
         sCo->cur = 0;
-        Co_SetPage(CO_START);
+        if (sCoRoom) sCoRoomDone = 1; /* back to the room */
+        else Co_SetPage(CO_START);
     }
 }
 static void Co_NameUpdate(void) { /* the keys: act = row * CO_KEY_COLS + column */
@@ -608,7 +611,6 @@ static void Co_Tabs(f32 slide) {
     Ps_Align(1);
     Ps_Text(168.0f + slide + 152.0f, 48.0f, "<  izquierda / derecha  >", 0.32f, 260.0f, 4);
     Ps_Align(0);
-    Co_NoteDraw(); /* (what was just won or bought) */
 }
 
 extern const char *PortCoop_ChSecret(int);
@@ -1026,6 +1028,68 @@ static void Co_Draw(void) {
     MsgWin_PortDrawStringHd(Co_Box(box));
 }
 
+/* ---------------------------------------------------------------------------------------------- inside a room */
+/* "Mi personaje" over a room (menu/port_tbo.c): its pages without leaving, the room kept alive by `poll` each frame;
+   back with Triangle, or at once when `stop` says the room moves on (the fight starts, or it closed). The room's own
+   windows stay (the same ones as this screen's), so nothing is loaded here. */
+static void Co_TestPoll(void) {}
+static s32 Co_TestStop(void) { return 0; }
+void PortCoop_RoomMe(void (*poll)(void), s32 (*stop)(void)) {
+    CoopScreen *outer = sCo;
+
+    sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
+    memset(sCo, 0, sizeof(CoopScreen));
+    sCo->page = CO_ME;
+    sCo->cur = 3; /* on the points */
+    sCoRoom = 1;
+    sCoRoomDone = 0;
+    sCoFromMe = 0;
+    while (!sCoRoomDone) {
+        Job_Run();
+        Gfx_BeginFrame();
+        Pad_Update();
+        Snd_Update();
+        ColorFade_Update();
+        poll();
+        if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ROOMME_TEST")) { /* (test: the page, its points, back) */
+            extern void Port_TagUiCapture(int);
+            if (sCo->frames == 30) Port_TagUiCapture(2);
+            if (sCo->frames == 40) gPad[0].gamePressed = PADG_CROSS;
+            if (sCo->frames == 70) Port_TagUiCapture(3);
+            if (sCo->frames == 80) gPad[0].gamePressed = PADG_TRIANGLE;
+            if (sCo->frames == 90) gPad[0].gamePressed = PADG_TRIANGLE;
+        }
+        if (stop()) sCoRoomDone = 1;
+        Ps_PromptsClear();
+        if (!sCoRoomDone) {
+            if (sCo->page == CO_ME) Co_MeUpdate();
+            else if (sCo->page == CO_NAME) Co_NameUpdate();
+            else if (sCo->page == CO_POINTS) Co_PointsUpdate();
+            else if (sCo->page == CO_TREE) Co_TreeUpdate();
+            else if (sCo->page == CO_OBJ) Co_ObjUpdate();
+            else if (sCo->page == CO_MISSIONS) Co_MissionsUpdate();
+            else Co_SetPage(CO_ME);
+        }
+        Port_MenuPage(52);
+        Ps_PageSet();
+        Ps_SetShift(0);
+        Co_Draw();
+        Co_NoteDraw();
+        Ps_PromptsDraw();
+        ColorFade_Draw();
+        Port_MenuPage(0);
+        File_Stub264D90();
+        Gfx_EndFrame(1);
+        Dma_Flush();
+        sCo->frames++;
+    }
+    sCoRoom = 0;
+    sCoFromMe = 0;
+    Heap_Free(sCo);
+    sCo = outer;
+    gPad[0].gamePressed = 0; /* (the Triangle that closed it is not the room's) */
+}
+
 /* ---------------------------------------------------------------------------------------------- the frame loop */
 /* Returns 1 when left for the online screens (gPortTboCoop says what to do there), 2 for "Mi personaje"'s select,
    0 back to the main menu. */
@@ -1049,6 +1113,7 @@ s32 PortCoop_Run(void) {
     PortCoop_Select(-1); /* (an ordinary room until a chapter is chosen again) */
     Co_WinInit();
     ColorFade_StartIn(0, 0, 0, 0x14);
+    if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ROOMME_TEST") && !sCoPickTested) { sCoPickTested = 1; PortCoop_RoomMe(Co_TestPoll, Co_TestStop); } /* (test: as from a room) */
     if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_PICK_TEST") && !sCoPickTested) { sCoPickTested = 1; sCoPickBack = 1; Co_Leave(2); } /* (test) */
     while (1) {
         s32 live;
@@ -1077,6 +1142,7 @@ s32 PortCoop_Run(void) {
         Ps_PageSet();
         Ps_SetShift(0);
         Co_Draw();
+        Co_NoteDraw(); /* (what was just won, bought or learnt) */
         Ps_PromptsDraw();
         ColorFade_Draw();
         Port_MenuPage(0);
