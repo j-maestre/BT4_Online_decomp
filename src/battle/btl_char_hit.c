@@ -1202,6 +1202,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
 void BtlHit_ApplyHit(HitChr *atk) {
     s32 drain = 0;
     s32 launch = 0;
+    s32 traceLvl = -99; /* (test) */
     HitChr *def;
     HitObj *dobj;
     s32 kind;
@@ -1274,6 +1275,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
             }
         }
         lvl -= BtlAtk_GetUnk2C(atk);
+        traceLvl = lvl;
         if (lvl > 0 && (af & 4)) {
             react = 2;
             if (BtlParam_GetFlags(def) & 4) {
@@ -1314,6 +1316,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
         }
         break;
     }
+    { extern void CoopRaid_Trace(s32 actor, s32 kind, s32 flags, s32 level, s32 react); CoopRaid_Trace(def->side, kind, af, traceLvl, react); }
     def->react.reaction = react;
     if (react != 2) {
         def->react.unk4 = BtlAtk_GetReactionSub(atk);

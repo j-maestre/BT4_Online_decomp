@@ -193,26 +193,32 @@ static void Ult_Show(s32 a) {
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
 static s32 Rev_Lv(s32 a) { return sLvOn && a >= 0 && a < 10 ? sLvLevel[a] : 0; }
-/* A raid's boss (port/src/coop_story.c, "aguante"): the rivals do not flinch, as under the skill that gives it for
-   a while ("Falso coraje": the timer at 0xE18 of the fighter, attribute 0x400 of a skill; src/battle/btl_char_hit.c
-   turns every reaction that is not a launch into "no flinch", src/battle/btl_char_coll_b.c the blasts' and the
-   rushes'). Kept up every step (CoopRevive_Update), so it never runs out; blows that launch still launch. */
+/* A raid's boss (port/src/coop_story.c, "aguante"): the rivals fight under "Falso coraje" the whole battle. That
+   skill is a timer of the fighter (0xE14, a kind 1 skill with attribute 0x800: src/battle/btl_act_h_b.c), and while
+   it runs the fighter has one armour level more (src/battle/btl_char_hit.c, btl_char_coll_b.c: plain blows and plain
+   blasts do not make it flinch, strong ones do; the CPU reads it too, src/battle/btl_capi_b.c). Here it is only kept
+   from running out, every step (CoopRevive_Update): what it does is the game's. */
 static s32 sRaidArmor;
 void CoopRaid_SetArmor(s32 on) {
     sRaidArmor = on > 0 || (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST"));
-    if (sRaidArmor) fprintf(stderr, "coop: the rivals do not flinch (a raid)\n");
+    if (sRaidArmor) fprintf(stderr, "coop: the rivals fight under Falso coraje (a raid)\n");
 }
 extern s32 TagBattle_Active(void);
-s32 CoopBoss_NoTransform(s32 actor);
 static void CoopRaid_Step(s32 n) {
     s32 a;
     for (a = 0; sRaidArmor && a < n && a < 10; a++)
         if (TagBattle_Team(a) == 1) {
-            s32 *left = (s32 *)((u8 *)BtlChar_Get(a) + 0xE18);
-            if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST") && sLvTick % 300 == 5) /* (test: the timer runs down by itself) */
-                fprintf(stderr, "coop raid: rival %d no-flinch timer %d before the refill, can transform by itself: %d\n", a, *left, !CoopBoss_NoTransform(a));
+            s32 *left = (s32 *)((u8 *)BtlChar_Get(a) + 0xE14);
             if (*left < 30) *left = 30;
         }
+}
+/* (test: every blow: who takes it, its armour level if the blow got to that comparison, and the reaction) */
+void CoopRaid_Trace(s32 actor, s32 kind, s32 flags, s32 level, s32 react) {
+    extern s32 gPortResim;
+    static s32 n;
+    if (!getenv("BT4_RENDER_TEST") || !getenv("BT4_COOP_ARMOR_TEST") || gPortResim || n++ > 600) return;
+    fprintf(stderr, "coop raid blow: on %d (team %d) attack %x absorbable %d armour level %d reaction %x\n", actor, TagBattle_Team(actor), kind,
+            (flags & 4) != 0, level, react);
 }
 /* A rival that changes form by the chapter (CoopBoss_Set), or a raid's: it does not transform by itself (the CPU
    would, and the form the chapter brings in next would then be a step back). src/battle/btl_act_j.c asks. */
