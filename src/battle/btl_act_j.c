@@ -199,6 +199,10 @@ s32 BtlAct_CanTransform(BtlActJChr *chr, u32 index, s32 needBlast, s32 needAllow
     if (index >= 4) {
         return 0;
     }
+#ifdef PORT
+    {   extern s32 CoopBoss_NoTransform(s32 actor); /* (a co-op boss: its forms come in by the chapter) */
+        if (CoopBoss_NoTransform(chr->player)) return 0; }
+#endif
     if (needAllowed && chr->form.allowed == 0) {
         return 0;
     }

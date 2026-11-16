@@ -255,7 +255,9 @@ s32 TagBattle_ConfigureLocal(void) {
         extern int PortCoop_Active(void);extern void CoopLv_Configure(s32);
         CoopLv_Configure((network&&PortCoop_Active())||(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_LV_TEST")));
         {   extern int PortCoop_FoeDamagePct(void);extern void CoopLv_SetFoeDamage(s32);
-            if(network&&PortCoop_Active())CoopLv_SetFoeDamage(PortCoop_FoeDamagePct()); } /* (the chapter's difficulty) */
+            if(network&&PortCoop_Active())CoopLv_SetFoeDamage(PortCoop_FoeDamagePct());
+            {   extern int PortCoop_FoeArmor(void);extern void CoopRaid_SetArmor(s32);
+                CoopRaid_SetArmor(network&&PortCoop_Active()?PortCoop_FoeArmor():0); } } /* (the chapter's difficulty) */
     }
     /* Local development match. The network battle protocol is not enabled here. */
     BattleSetup_SetRule(0,0,sTagBgm,(getenv("BT4_RENDER_TEST")&&getenv("BT4_TAG_LONG_VIDEO"))?0:getenv("BT4_TAG_SPECTATOR_TEST")?0:(getenv("BT4_RENDER_TEST")&&getenv("BT4_COOP_INF_TEST"))?0:getenv("BT4_TAG_LOCAL_TEST")?5:Port_TagTime(),4,sTagStage,0);

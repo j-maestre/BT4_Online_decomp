@@ -1273,9 +1273,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
                 lvl--;
             }
         }
-        { extern s32 CoopRaid_Armor(s32 actor); lvl += CoopRaid_Armor(def->side); } /* (a raid's boss) */
         lvl -= BtlAtk_GetUnk2C(atk);
-        { extern void CoopRaid_Trace(s32 actor, s32 absorbed); CoopRaid_Trace(def->side, lvl > 0 && (af & 4)); }
         if (lvl > 0 && (af & 4)) {
             react = 2;
             if (BtlParam_GetFlags(def) & 4) {

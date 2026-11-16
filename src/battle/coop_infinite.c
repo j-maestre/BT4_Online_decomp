@@ -193,23 +193,32 @@ static void Ult_Show(s32 a) {
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
 static s32 Rev_Lv(s32 a) { return sLvOn && a >= 0 && a < 10 ? sLvLevel[a] : 0; }
-/* A raid's boss (port/src/coop_story.c, "aguante"): armour levels added to the rivals', so that plain blows and plain
-   ki blasts do not make it flinch (the comparison the giants have: src/battle/btl_char_hit.c, btl_char_coll_b.c).
-   Attacks that ignore armour (charged blows, throws, supers) go through as ever. */
-s32 CoopRaid_Armor(s32 actor) {
-    extern int PortCoop_FoeArmor(void), PortCoop_Active(void);
-    extern s32 TagBattle_Active(void);
-    if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST")) return TagBattle_Active() && actor >= 0 && actor < 10 && TagBattle_Team(actor) == 1; /* (test) */
-    if (!TagBattle_Active() || !PortCoop_Active() || actor < 0 || actor >= 10 || TagBattle_Team(actor) != 1) return 0;
-    return PortCoop_FoeArmor();
+/* A raid's boss (port/src/coop_story.c, "aguante"): the rivals do not flinch, as under the skill that gives it for
+   a while ("Falso coraje": the timer at 0xE18 of the fighter, attribute 0x400 of a skill; src/battle/btl_char_hit.c
+   turns every reaction that is not a launch into "no flinch", src/battle/btl_char_coll_b.c the blasts' and the
+   rushes'). Kept up every step (CoopRevive_Update), so it never runs out; blows that launch still launch. */
+static s32 sRaidArmor;
+void CoopRaid_SetArmor(s32 on) {
+    sRaidArmor = on > 0 || (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST"));
+    if (sRaidArmor) fprintf(stderr, "coop: the rivals do not flinch (a raid)\n");
 }
-/* (test: what the armour did to a blow) */
-void CoopRaid_Trace(s32 actor, s32 absorbed) {
-    static s32 sAbs, sThrough;
-    extern s32 gPortResim;
-    if (!getenv("BT4_RENDER_TEST") || !getenv("BT4_COOP_ARMOR_TEST") || gPortResim || !CoopRaid_Armor(actor)) return;
-    if (absorbed) sAbs++; else sThrough++;
-    if ((sAbs + sThrough) % 10 == 0) fprintf(stderr, "coop raid armour: %d blows absorbed (no flinch), %d through\n", sAbs, sThrough);
+extern s32 TagBattle_Active(void);
+s32 CoopBoss_NoTransform(s32 actor);
+static void CoopRaid_Step(s32 n) {
+    s32 a;
+    for (a = 0; sRaidArmor && a < n && a < 10; a++)
+        if (TagBattle_Team(a) == 1) {
+            s32 *left = (s32 *)((u8 *)BtlChar_Get(a) + 0xE18);
+            if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST") && sLvTick % 300 == 5) /* (test: the timer runs down by itself) */
+                fprintf(stderr, "coop raid: rival %d no-flinch timer %d before the refill, can transform by itself: %d\n", a, *left, !CoopBoss_NoTransform(a));
+            if (*left < 30) *left = 30;
+        }
+}
+/* A rival that changes form by the chapter (CoopBoss_Set), or a raid's: it does not transform by itself (the CPU
+   would, and the form the chapter brings in next would then be a step back). src/battle/btl_act_j.c asks. */
+static s32 sBossHas[10];
+s32 CoopBoss_NoTransform(s32 actor) {
+    return TagBattle_Active() && actor >= 0 && actor < 10 && TagBattle_Team(actor) == 1 && (sBossHas[actor] || sRaidArmor);
 }
 static s32 Rev_Ticks(s32 h) { s32 t = Rev_Lv(h) >= 10 ? 60 : REVIVE_TICKS; return sLvOn && h >= 0 && h < 10 && ((sLvHab[h] >> 8) & 1) ? t * 70 / 100 : t; }
 static f32 Rev_Range(s32 h) { return Rev_Lv(h) >= 80 ? REVIVE_RANGE * 1.5f : REVIVE_RANGE; }
@@ -236,6 +245,7 @@ void CoopRevive_Update(void) {
     s32 d, h, n = TagBattle_Count();
 
     if (sBossFlash > 0) sBossFlash--;
+    CoopRaid_Step(n);
     if (sComboFlash > 0) sComboFlash--;
     sLvTick++;
     if (sUltFlash > 0) sUltFlash--;
@@ -416,6 +426,7 @@ void CoopLv_Configure(s32 on) {
     sUltFlash = 0; sUltWait = 0; memset(sUltBusy, 0, sizeof(sUltBusy));
     memset(sLvHitAt, 0, sizeof(sLvHitAt)); memset(sLvHitOn, 0, sizeof(sLvHitOn)); sLvTick = 0; sComboFlash = 0; sCombos = 0;
     memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
+    memset(sBossHas, 0, sizeof(sBossHas)); sRaidArmor = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }
 }
 void CoopLv_SetLevel(s32 actor, s32 level) { if (actor >= 0 && actor < 10) sLvLevel[actor] = level < 0 ? 0 : level > 100 ? 100 : level; }
@@ -442,7 +453,7 @@ s32 CoopLv_KiCost(BtlMemberChr *chr, s32 amount) {
     return amount * (200 - sLvPts[a][3]) / 200;
 }
 void CoopBoss_Set(s32 actor, s32 member, s32 pct) {
-    if (actor >= 0 && actor < 10 && member >= 0 && member < 6) sBossPct[actor][member] = pct;
+    if (actor >= 0 && actor < 10 && member >= 0 && member < 6) { sBossPct[actor][member] = pct; if (pct > 0) sBossHas[actor] = 1; }
 }
 /* For the HUD (port/src/gs/mods.c): steps left of the "transforms" notice. */
 s32 CoopBoss_Flash(void) { return sBossFlash; }
