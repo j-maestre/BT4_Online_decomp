@@ -604,7 +604,13 @@ void ChrCam_UpdateDemo(ChrCamChr *chr) {
     if(TagBattle_Active()){
         if(action>=0xB4 && action<=0xBF)return;
         s32 view=TagBattle_ViewActor();
-        if(!TagBattle_CutVisible(chr->side,view))return;
+        if(!TagBattle_CutVisible(chr->side,view)){
+            /* (its own camera is still ended: the view may have gone to a pair's attacker meanwhile) */
+            extern void *BtlObj_Get(s32 objId);extern s32 BattleSide_GetObjId(s32 side);
+            void *obj=BtlObj_Get(BattleSide_GetObjId(chr->side));
+            if(BtlChar_TestFlag(chr,0xDA)&&obj!=NULL&&(gDemoCam->obj==obj||gDemoCam->chr==obj))DemoCam_Stop();
+            return;
+        }
     }
     if (BtlChar_TestFlag(chr, 0xDA)) {
         DemoCam_Stop();

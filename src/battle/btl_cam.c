@@ -807,6 +807,23 @@ s32 BtlCam_UpdateOverride(void) {
 #endif
         BtlCam_BuildView(gBtlCam->cur,1);
         own=BtlObj_Get(BattleSide_GetObjId(0));
+        /* A special move's camera holds its last frame until its fighter raises the flag that ends it
+           (ChrCam_UpdateDemo); when that is missed (the move interrupted by a third fighter, or the flag raised
+           while the view was another's) it would stay there for the rest of the battle, the fighter walking out
+           of the picture. Once its fighter has been standing, walking or flying for two thirds of a second in
+           the fight, it is stopped. (This machine's view only, as the demo camera itself in Tag.) */
+        {   static s32 sDemoIdle;
+            extern s32 BtlSeq_IsFighting(void);
+            extern void DemoCam_Stop(void);
+            s32 act = demoOwner >= 0 ? BtlAct_GetCurrent(BtlChar_Get(demoOwner)) : -1;
+            if (demoOwner >= 0 && act >= 0xB && act <= 0x1B && BtlSeq_IsFighting() && DemoCam_IsActive()) {
+                if (++sDemoIdle >= 20) {
+                    printf("tag camera: a special move's camera left on by fighter %d is stopped\n", demoOwner);
+                    DemoCam_Stop();
+                    sDemoIdle = 0;
+                }
+            } else sDemoIdle = 0;
+        }
         if(DemoCam_IsActive()) {
             extern s32 Port_SpecialMoveCameras(s32 change);
             s32 local=demoOwner>=0 && demoOwner==focus && Port_SpecialMoveCameras(-1);
