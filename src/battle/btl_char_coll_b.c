@@ -1112,6 +1112,10 @@ s32 BtlColl_TryDodge(s32 objId, BtlCollHit *hit) {
     if (BtlChar_IsFrozen(chr)) {
         return 1;
     }
+#ifdef PORT
+    {   extern s32 CoopLv_UltBusyChr(void *chr); /* (the co-op team ultimate's burst: nothing lands) */
+        if (CoopLv_UltBusyChr(chr)) return 1; }
+#endif
     if (BtlChar_TestFlag(chr, 0xAA)) {
         return 1;
     }

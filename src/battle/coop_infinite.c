@@ -166,6 +166,29 @@ static s32 sLvHab[10]; /* the ki abilities bought (port/src/coop_story.c): 1 a k
 #define ULT_KI 60000
 #define ULT_RANGE 300.0f
 static s32 sUltFlash, sUltWait;
+/* Its show: both players do the full-power burst of the ki charge (animation 0x36 of action 0x37, which no input
+   cancels) with its aura, shout and a shaking camera, and for ULT_BUSY steps nothing can hit or grab them
+   (CoopLv_UltBusyChr: src/battle/btl_char_flag.c, btl_char_coll_b.c and btl_char_hit.c ask). */
+#define ULT_BUSY 50
+static s32 sUltBusy[10];
+extern s32 BtlAct_GetCurrent(BtlMemberChr *chr), BtlParam_GetMaxPowerSound(BtlMemberChr *chr);
+extern void BtlAnim_Request(BtlMemberChr *chr, s32 anim, f32 blend), BtlChar_SetFxBit(BtlMemberChr *chr, s32 n);
+extern void BtlChar_PlayVoice(BtlMemberChr *chr, s32 kind), BtlCharSnd_PlayCommon(BtlMemberChr *chr, s32 id);
+extern void ChrCam_AddShake(BtlMemberChr *chr, f32 strength, f32 time), BtlChar_Vibrate(BtlMemberChr *chr, f32 power, f32 seconds);
+s32 CoopLv_UltBusy(s32 actor) { return actor >= 0 && actor < 10 && sUltBusy[actor] > 0; }
+s32 CoopLv_UltBusyChr(void *chr) { return chr != NULL && CoopLv_UltBusy(((BtlMemberChr *)chr)->side); }
+static void Ult_Show(s32 a) {
+    BtlMemberChr *c = BtlChar_Get(a);
+    sUltBusy[a] = ULT_BUSY;
+    if (BtlAct_GetCurrent(c) == 0x37) { /* (charging, as L2 held does: its burst) */
+        BtlAnim_Request(c, 0x36, 0.15f);
+        BtlChar_SetFxBit(c, 8);
+        BtlCharSnd_PlayCommon(c, BtlParam_GetMaxPowerSound(c));
+        BtlChar_PlayVoice(c, 0x13);
+    }
+    ChrCam_AddShake(c, 6.0f, 0.6f);
+    BtlChar_Vibrate(c, 1.0f, 0.5f);
+}
 /* The level rewards of "Mi personaje" (port/src/coop_story.c lists them): level 10 revives a partner in two seconds,
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
@@ -199,6 +222,7 @@ void CoopRevive_Update(void) {
     sLvTick++;
     if (sUltFlash > 0) sUltFlash--;
     if (sUltWait > 0) sUltWait--;
+    { s32 u; for (u = 0; u < 10; u++) if (sUltBusy[u] > 0) sUltBusy[u]--; }
     if (sLvOn && !sUltWait) { /* the team ultimate */
         s32 a1 = -1, a2b = -1, k;
         for (k = 0; k < TagBattle_Count() && k < 10; k++)
@@ -206,8 +230,9 @@ void CoopRevive_Update(void) {
         if (a1 >= 0 && a2b >= 0) {
             BtlMemberChr *c1 = BtlChar_Get(a1), *c2 = BtlChar_Get(a2b);
             f32 dx = CoopRevive_Delta(a1, a2b, 0), dy = CoopRevive_Delta(a1, a2b, 1), dz = CoopRevive_Delta(a1, a2b, 2);
-            if (BtlInput_IsHeld(c1, 0x200) && BtlInput_IsHeld(c1, 0x1000) && BtlInput_IsHeld(c2, 0x200) && BtlInput_IsHeld(c2, 0x1000)
-                && BtlMember_HasKi(c1, ULT_KI) && BtlMember_HasKi(c2, ULT_KI) && dx * dx + dy * dy + dz * dz <= ULT_RANGE * ULT_RANGE) {
+            if ((BtlInput_IsHeld(c1, 0x200) && BtlInput_IsHeld(c1, 0x1000) && BtlInput_IsHeld(c2, 0x200) && BtlInput_IsHeld(c2, 0x1000)
+                && BtlMember_HasKi(c1, ULT_KI) && BtlMember_HasKi(c2, ULT_KI) && dx * dx + dy * dy + dz * dz <= ULT_RANGE * ULT_RANGE)
+                || (sLvTick == 300 && getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ULT_TEST"))) { /* (test: by itself) */
                 for (k = 0; k < TagBattle_Count() && k < 10; k++)
                     if (TagBattle_Team(k) == 1 && BtlCharApi_GetHp(k) > 0) {
                         BtlMemberChr *r = BtlChar_Get(k);
@@ -215,10 +240,12 @@ void CoopRevive_Update(void) {
                         s32 hit = g->healthMax * 15 / 100;
                         g->health = g->health - hit > 1 ? g->health - hit : 1;
                         sLvDealt[a1] += hit / 2; sLvDealt[a2b] += hit / 2; sLvRivalDamage += hit;
+                        ChrCam_AddShake(r, 6.0f, 0.6f);
                     }
+                Ult_Show(a1); Ult_Show(a2b);
                 BtlMember_SpendKi(c1, ULT_KI, 1); BtlMember_SpendKi(c2, ULT_KI, 1);
                 sUltFlash = 120; sUltWait = 30 * 20;
-                fprintf(stderr, "coop: team ultimate by %d and %d\n", a1, a2b);
+                fprintf(stderr, "coop: team ultimate by %d and %d (actions %x %x)\n", a1, a2b, BtlAct_GetCurrent(c1), BtlAct_GetCurrent(c2));
             }
         }
     }
@@ -368,7 +395,7 @@ void CoopLv_Configure(s32 on) {
     sLvFoePct = 100;
     memset(sLvPts, 0, sizeof(sLvPts));
     memset(sLvHab, 0, sizeof(sLvHab));
-    sUltFlash = 0; sUltWait = 0;
+    sUltFlash = 0; sUltWait = 0; memset(sUltBusy, 0, sizeof(sUltBusy));
     memset(sLvHitAt, 0, sizeof(sLvHitAt)); memset(sLvHitOn, 0, sizeof(sLvHitOn)); sLvTick = 0; sComboFlash = 0; sCombos = 0;
     memset(sBossPct, 0, sizeof(sBossPct)); memset(sBossInit, 0, sizeof(sBossInit)); sBossFlash = 0;
     for (i = 0; i < 10; i++) { sLvLevel[i] = 0; sLvDealt[i] = 0; sLvRevives[i] = 0; sLvDowns[i] = 0; }

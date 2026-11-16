@@ -905,6 +905,7 @@ static void coop_hud(const FpState *fp, const ModsGame *g) {
         }
         {   extern int CoopLv_UltFlash(void), CoopLv_UltReady(void);
             int uf = CoopLv_UltFlash();
+            if (uf > 104) coop_fill(-400, -200, MODS_HUD_H * 4.0f + 800, MODS_HUD_H + 400, 0xFFFFFF00u | (unsigned)((uf - 104) * 0xD0 / 16), 0); /* (a white flash) */
             if (uf > 0) {
                 unsigned a = uf > 20 ? 0xFFu : (unsigned)(uf * 255 / 20);
                 coop_fill(cx - 210, MODS_HUD_H * 0.32f - 8, 420, 44, 0x00000000u | (a * 0xC0 / 255), 10);

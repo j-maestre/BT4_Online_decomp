@@ -118,6 +118,12 @@ s32 BtlChar_TestFlag(BtlFlagChr *chr, u32 n) {
     u8 m = 1 << (n & 7);
     u8 cur = chr->held[i] | chr->pulse[i];
 
+#ifdef PORT
+    if (n >= 0x42 && n <= 0x46) { /* (the invulnerability flags: also during the co-op team ultimate's burst) */
+        extern s32 CoopLv_UltBusyChr(void *chr);
+        if (CoopLv_UltBusyChr(chr)) return 1;
+    }
+#endif
     return (cur & m) != 0;
 }
 

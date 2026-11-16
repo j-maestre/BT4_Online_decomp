@@ -1071,6 +1071,7 @@ void BtlHit_CheckProximityAll(void) {
                 HitChr *b = BtlChar_Get(j);
 
                 if(TagBattle_Active() && (BtlChar_IsFrozen(a)||BtlChar_IsFrozen(b)))continue;
+                {extern s32 CoopLv_UltBusy(s32);if(CoopLv_UltBusy(i)||CoopLv_UltBusy(j))continue;} /* (the co-op team ultimate's burst: no grabs) */
                 BtlHit_CheckNear(a, b);
                 BtlHit_CheckGrab(a, b);
                 BtlHit_CheckTouch(a, b);
