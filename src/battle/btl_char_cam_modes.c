@@ -485,6 +485,23 @@ void ChrCam_Update(ChrCamChr *chr) {
             BtlChar_ClearFlag(chr, 0xDB);
             BtlChar_SetFlag(chr, 0xCD);
         }
+        /* A cut left running by an action that was interrupted (a third fighter's hit in the middle of a grab or
+           a special move never reaches the action's own ChrCam_EndCut) would keep the view off the fighter for
+           the rest of the battle: once the fighter has been standing, walking or flying for a second with a cut
+           still on, it is ended. From the fighter's own state only, so the same on every machine. */
+        {   static u8 sStuck[10];
+            s32 who = chr->side;
+            if (who >= 0 && who < 10) {
+                if (action >= 0xB && action <= 0x1B && ChrCam_IsCutActive(chr)) {
+                    if (++sStuck[who] >= 30) {
+                        ChrCam_EndCut(chr);
+                        BtlChar_ClearFlag(chr, 0xDB);
+                        BtlChar_SetFlag(chr, 0xCD);
+                        sStuck[who] = 0;
+                    }
+                } else sStuck[who] = 0;
+            }
+        }
     }
     if (BtlChar_TestFlag(chr, 0xCC)) {
         Vec4_Copy(&eye, &chr->cam.pos);

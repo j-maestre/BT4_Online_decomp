@@ -2306,7 +2306,10 @@ static void Tb_DrawTagRoomText(void){
         else {Ps_Align(1);Ps_TextRaw(256,66,(char*)Port_TagCode(),.58f,180,1);Ps_Align(0);}
     }
     if(bottom+48.0f<=320.0f){Ps_Align(1);Ps_Text(local?256:395-left*.5f,Ps_TextTop(bottom+28.0f,.62f),Port_TagHost()?"Choose Fighters":"Waiting for host",.62f,188-left,sTb->tagRoomAction?1:0);Ps_Align(0);}
-    if(PortCoop_Active()&&!sTb->tagQuick){PortOnline_Raw(1);Ps_Align(2);Ps_Text(right-20,60,"R2: Mi personaje (mejoras, \303\241rbol, objetos...)",.40f,300,3);Ps_Align(0);PortOnline_Raw(0);}
+    if(PortCoop_Active()&&!sTb->tagQuick){ /* how to open "Mi personaje" from here */
+        f32 y=bottom+(bottom+48.0f<=320.0f?54.0f:8.0f); /* (under the room code; the top right corner is the player card's) */
+        Ps_Pill(TBO_KIT_GOLD,96,y,416,y+26,0x80);
+        PortOnline_Raw(1);Ps_Align(1);Ps_Text(256,Ps_TextTop(y+13,.50f),"Pulsa R2: Mi personaje (mejoras, habilidades, objetos)",.50f,300,0);Ps_Align(0);PortOnline_Raw(0);}
 }
 static void Tb_DrawJoin(void) {
     s32 c;

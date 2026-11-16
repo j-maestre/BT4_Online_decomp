@@ -724,36 +724,57 @@ int PortRpg_PickAbilities(void) { return sUsingMine ? sPickedHab : 0; }
 
 /* ------------------------------------------------------------------------------------------------------------------
  * Equipable objects (src/menu/port_coop.c, "Objetos"): won with the weekly missions, the weekly bosses and the
- * "What if" routes; two equipped at a time; they add improvement points (taken with the cell, as the points).
- * coop_obj (owned, a bit each), coop_eq1 / coop_eq2 (equipped: index + 1).
+ * "What if" routes, or bought in the shop; up to eight equipped at a time; they add improvement points (taken with
+ * the cell, as the points). coop_obj (owned, a bit each), coop_eqm (equipped, a bit each; before it, coop_eq1 /
+ * coop_eq2: index + 1).
  * ---------------------------------------------------------------------------------------------------------------- */
-static const struct { const char *name, *what; int pts[4]; } kObj[] = {
-    {"Peto saiyajin", "+8 de defensa", {0, 0, 8, 0}}, {"Banda de Goku", "+8 de Ki", {0, 0, 0, 8}},
-    {"Muñ" "equeras de peso", "+8 de ataque", {0, 8, 0, 0}}, {"Capa de Piccoro", "+8 de vida", {8, 0, 0, 0}},
-    {"Pendientes Potara", "+5 a todo", {5, 5, 5, 5}}, {"Radar del Dragón", "+20% Puntos Z al ganar", {0, 0, 0, 0}},
-    {"Bá" "culo mágico", "+12 de ataque", {0, 12, 0, 0}}, {"Armadura de Freezer", "+12 de defensa", {0, 0, 12, 0}}};
+static const struct { const char *name, *what; int pts[4]; int price; } kObj[] = {
+    {"Peto saiyajin", "+8 de defensa", {0, 0, 8, 0}, 15000}, {"Banda de Goku", "+8 de Ki", {0, 0, 0, 8}, 15000},
+    {"Muñ" "equeras de peso", "+8 de ataque", {0, 8, 0, 0}, 15000}, {"Capa de Piccoro", "+8 de vida", {8, 0, 0, 0}, 15000},
+    {"Pendientes Potara", "+5 a todo", {5, 5, 5, 5}, 40000}, {"Radar del Dragón", "+20% Puntos Z al ganar", {0, 0, 0, 0}, 30000},
+    {"Bá" "culo mágico", "+12 de ataque", {0, 12, 0, 0}, 25000}, {"Armadura de Freezer", "+12 de defensa", {0, 0, 12, 0}, 25000},
+    {"Semilla senzu", "+12 de vida", {12, 0, 0, 0}, 25000}, {"Nube Kinton", "+12 de Ki", {0, 0, 0, 12}, 25000},
+    {"Espada de Trunks", "+6 de ataque y +6 de Ki", {0, 6, 0, 6}, 20000}, {"Cola de saiyajin", "+6 de vida y +6 de ataque", {6, 6, 0, 0}, 20000},
+    {"Caparazón de tortuga", "+6 de vida y +6 de defensa", {6, 0, 6, 0}, 20000}, {"Rastreador", "+6 de defensa y +6 de Ki", {0, 0, 6, 6}, 20000},
+    {"Bola de 4 estrellas", "+4 a todo", {4, 4, 4, 4}, 35000}, {"Agua ultrasagrada", "+10 de ataque y +10 de Ki", {0, 10, 0, 10}, 45000}};
+#define OBJ_EQUIP_MAX 8
 #define OBJ_COUNT ((int)(sizeof(kObj) / sizeof(kObj[0])))
 int PortObj_Count(void) { return OBJ_COUNT; }
 const char *PortObj_Name(int i) { return i >= 0 && i < OBJ_COUNT ? kObj[i].name : ""; }
 const char *PortObj_What(int i) { return i >= 0 && i < OBJ_COUNT ? kObj[i].what : ""; }
 int PortObj_Owned(int i) { return i >= 0 && i < OBJ_COUNT && ((Port_Setting("coop_obj", 0) >> i) & 1); }
-int PortObj_Equipped(int i) { return i >= 0 && (Port_Setting("coop_eq1", 0) == i + 1 || Port_Setting("coop_eq2", 0) == i + 1); }
-/* equips or takes off object i (two at most: the first slot goes when both are full) */
-void PortObj_Toggle(int i) {
-    int a = Port_Setting("coop_eq1", 0), b = Port_Setting("coop_eq2", 0);
-    if (!PortObj_Owned(i)) return;
-    if (a == i + 1) Port_SettingSave("coop_eq1", 0);
-    else if (b == i + 1) Port_SettingSave("coop_eq2", 0);
-    else if (!a) Port_SettingSave("coop_eq1", i + 1);
-    else if (!b) Port_SettingSave("coop_eq2", i + 1);
-    else { Port_SettingSave("coop_eq1", b); Port_SettingSave("coop_eq2", i + 1); }
+static int obj_mask(void) { /* (the two slots of before, until the mask is first written) */
+    int m = Port_Setting("coop_eqm", -1), a, b;
+    if (m >= 0) return m;
+    a = Port_Setting("coop_eq1", 0); b = Port_Setting("coop_eq2", 0);
+    return (a > 0 ? 1 << (a - 1) : 0) | (b > 0 ? 1 << (b - 1) : 0);
+}
+int PortObj_Equipped(int i) { return i >= 0 && i < OBJ_COUNT && ((obj_mask() >> i) & 1); }
+int PortObj_EquipMax(void) { return OBJ_EQUIP_MAX; }
+int PortObj_EquipCount(void) { int i, n = 0; for (i = 0; i < OBJ_COUNT; i++) n += PortObj_Equipped(i) && PortObj_Owned(i); return n; }
+int PortObj_Price(int i) { return i >= 0 && i < OBJ_COUNT ? kObj[i].price : 0; }
+/* equips or takes off object i (OBJ_EQUIP_MAX at most); 0 when it could not (not owned, or no room) */
+int PortObj_Toggle(int i) {
+    int m = obj_mask();
+    if (!PortObj_Owned(i)) return 0;
+    if ((m >> i) & 1) m &= ~(1 << i);
+    else if (PortObj_EquipCount() >= OBJ_EQUIP_MAX) return 0;
+    else m |= 1 << i;
+    Port_SettingSave("coop_eqm", m);
+    Port_SettingsWrite();
+    return 1;
+}
+/* bought in the shop (the money is the caller's) */
+void PortObj_Bought(int i) {
+    if (i < 0 || i >= OBJ_COUNT) return;
+    Port_SettingSave("coop_obj", Port_Setting("coop_obj", 0) | (1 << i));
     Port_SettingsWrite();
 }
 static int obj_points(int w) { int i, n = 0; for (i = 0; i < OBJ_COUNT; i++) if (PortObj_Equipped(i) && PortObj_Owned(i)) n += kObj[i].pts[w]; return n; }
 /* gives an object not yet owned (at random among them); its index, or -1 when all are owned */
 static int sObjGiven = -1;
 int PortObj_Give(void) {
-    int free[16], n = 0, i, pick;
+    int free[32], n = 0, i, pick;
     for (i = 0; i < OBJ_COUNT; i++) if (!PortObj_Owned(i)) free[n++] = i;
     if (!n) return -1;
     pick = free[(unsigned)(time(NULL) ^ (Port_Setting("coop_mi_xp", 0) * 2654435761u)) % (unsigned)n];
