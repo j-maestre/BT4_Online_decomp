@@ -648,6 +648,7 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
                 n--;
             }
         }
+        { extern s32 CoopRaid_Armor(s32 actor); n += CoopRaid_Armor(chr->side); } /* (a raid's boss) */
         if (n > 0 && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {
             react = BTL_REACT_NOFLINCH;
         } else if ((stFlags & 0x100) && (BtlKiBlast_GetFlagsOfHit(hit) & 0x10)) {

@@ -31,6 +31,7 @@ typedef struct PortCoopFoe { int chara, costume, level, health, behind, transfor
 typedef struct PortCoopChapter {
     char id[32], saga[48], title[64], pair[64], secret[48], require[48];
     int weekly;
+    int armor; /* armour levels of its fighters: plain blows do not make them flinch (the giants' own rule) */
     int raid, damage; /* a raid (its own list: one boss in phases); the % its fighters' blows are worth */
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
@@ -148,6 +149,7 @@ int PortCoop_Load(void) {
         lua_getfield(L, -1, "semanal"); c->weekly = lua_toboolean(L, -1); lua_pop(L, 1);
         lua_getfield(L, -1, "incursion"); c->raid = lua_toboolean(L, -1); lua_pop(L, 1);
         c->damage = field_int(L, "golpe", 100, 50, 300);
+        c->armor = field_int(L, "aguante", c->raid ? 1 : 0, 0, 3);
         field_str(L, "titulo", c->title, sizeof(c->title));
         field_str(L, "pareja", c->pair, sizeof(c->pair));
         field_str(L, "intro", c->intro, sizeof(c->intro));
@@ -1013,6 +1015,8 @@ int PortCoop_IsThisWeek(int i) {
 }
 int PortCoop_ChWeekly(int i) { return ch(i) ? ch(i)->weekly : 0; }
 int PortCoop_ChRaid(int i) { return ch(i) ? ch(i)->raid : 0; }
+int PortCoop_ChArmor(int i) { return ch(i) ? ch(i)->armor : 0; }
+int PortCoop_FoeArmor(void) { return sSelected >= 0 && !sInfinite ? sCh[sSelected].armor : 0; }
 int PortCoop_ChDamage(int i) { return ch(i) ? ch(i)->damage : 100; }
 const char *PortCoop_ChRequire(int i) { return ch(i) ? ch(i)->require : ""; }
 static int saga_done(const char *saga) { int j, n = 0; for (j = 0; j < sCount; j++) if (!strcmp(sCh[j].saga, saga)) { if (!PortCoop_Done(j)) return 0; n++; } return n > 0; }

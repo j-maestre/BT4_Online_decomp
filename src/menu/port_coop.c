@@ -1047,7 +1047,9 @@ static void Co_Draw(void) {
         }
         {   char more[96];
             if (PortCoop_ChReserveCount(c) > 0 && PortCoop_ChRaid(c)) {
-                sprintf(more, "%d barras de vida en total  \302\267  sus golpes: %d%%", PortCoop_ChReserveCount(c) + PortCoop_ChFoeCount(c), PortCoop_ChDamage(c));
+                extern int PortCoop_ChArmor(int);
+                sprintf(more, PortCoop_ChArmor(c) ? "%d barras de vida  \302\267  golpes %d%%  \302\267  no se tambalea" : "%d barras de vida en total  \302\267  sus golpes: %d%%",
+                        PortCoop_ChReserveCount(c) + PortCoop_ChFoeCount(c), PortCoop_ChDamage(c));
                 Ps_Text(120.0f + slide, 216.0f + 18.0f * (PortCoop_ChFoeCount(c) < 3 ? PortCoop_ChFoeCount(c) : 3), more, 0.5f, 340.0f, 1);
             } else if (PortCoop_ChReserveCount(c) > 0) {
                 sprintf(more, "+ %d refuerzos: entran cuando cae un rival", PortCoop_ChReserveCount(c));
@@ -1075,7 +1077,7 @@ static void Co_Draw(void) {
         }
         Co_Row(60.0f + slide, 300.0f + slide, 306.0f, "Crear sala", NULL, 1, 3);
         {   extern int PortCoop_ChWeekly(int);
-            box = PortCoop_ChRaid(c) ? "Incursi\303\263n: premio x5, doble EXP y un objeto la primera vez. Si cae uno, el otro puede revivirlo. Izquierda/derecha: dificultad."
+            box = PortCoop_ChRaid(c) ? "El jefe no se tambalea con golpes ni r\303\241fagas normales: usad golpes cargados, agarres y t\303\251cnicas, y atacad los dos a la vez. Premio x5 y doble EXP."
                 : PortCoop_ChWeekly(c) ? "Jefe semanal: premio triple y un objeto. Cuanto antes ganes, mejor nota (contrarreloj). Izquierda/derecha: dificultad."
                 : "Izquierda/derecha: dificultad. Cuanto antes ganes, mejor nota. Crea la sala y dale el c\303\263digo a tu amigo."; }
     }

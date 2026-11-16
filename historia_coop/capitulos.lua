@@ -32,6 +32,8 @@
 --   incursion  (opcional) true: es una incursión; sale en el apartado «Incursiones» y no en el mapa de sagas.
 --              Un solo jefe en «rivales» y sus fases en «refuerzos» (máximo 4): cada una es otra barra de vida.
 --              Premio x5, doble EXP y un objeto la primera vez. Ponlas todas juntas al final de la lista.
+--   aguante    (opcional) 1: los rivales no se tambalean con golpes ni ráfagas normales, como los gigantes (hay que
+--              usar golpes cargados, agarres y técnicas). En las incursiones es 1 si no pones nada; 0 lo quita.
 --   golpe      (opcional) en %, lo que duelen los golpes de los rivales (100 = normal; 50..300)
 --   secreto    (opcional) capítulo secreto: se abre al sacar nota S o Z en todos los capítulos de esa saga
 --   dialogo    (opcional) la conversación antes del combate, línea a línea: { {"Quién", "Qué dice"}, ... }

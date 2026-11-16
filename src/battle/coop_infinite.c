@@ -193,6 +193,24 @@ static void Ult_Show(s32 a) {
    25 gets up with 60% health, 40 appears beside a fallen partner in half a second, 60 takes 10% less damage, 80
    revives from half as far again. */
 static s32 Rev_Lv(s32 a) { return sLvOn && a >= 0 && a < 10 ? sLvLevel[a] : 0; }
+/* A raid's boss (port/src/coop_story.c, "aguante"): armour levels added to the rivals', so that plain blows and plain
+   ki blasts do not make it flinch (the comparison the giants have: src/battle/btl_char_hit.c, btl_char_coll_b.c).
+   Attacks that ignore armour (charged blows, throws, supers) go through as ever. */
+s32 CoopRaid_Armor(s32 actor) {
+    extern int PortCoop_FoeArmor(void), PortCoop_Active(void);
+    extern s32 TagBattle_Active(void);
+    if (getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_ARMOR_TEST")) return TagBattle_Active() && actor >= 0 && actor < 10 && TagBattle_Team(actor) == 1; /* (test) */
+    if (!TagBattle_Active() || !PortCoop_Active() || actor < 0 || actor >= 10 || TagBattle_Team(actor) != 1) return 0;
+    return PortCoop_FoeArmor();
+}
+/* (test: what the armour did to a blow) */
+void CoopRaid_Trace(s32 actor, s32 absorbed) {
+    static s32 sAbs, sThrough;
+    extern s32 gPortResim;
+    if (!getenv("BT4_RENDER_TEST") || !getenv("BT4_COOP_ARMOR_TEST") || gPortResim || !CoopRaid_Armor(actor)) return;
+    if (absorbed) sAbs++; else sThrough++;
+    if ((sAbs + sThrough) % 10 == 0) fprintf(stderr, "coop raid armour: %d blows absorbed (no flinch), %d through\n", sAbs, sThrough);
+}
 static s32 Rev_Ticks(s32 h) { s32 t = Rev_Lv(h) >= 10 ? 60 : REVIVE_TICKS; return sLvOn && h >= 0 && h < 10 && ((sLvHab[h] >> 8) & 1) ? t * 70 / 100 : t; }
 static f32 Rev_Range(s32 h) { return Rev_Lv(h) >= 80 ? REVIVE_RANGE * 1.5f : REVIVE_RANGE; }
 static s32 Rev_WarpTicks(s32 h) { return Rev_Lv(h) >= 40 ? 15 : REVIVE_WARP_TICKS; }
