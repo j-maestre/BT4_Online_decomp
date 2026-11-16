@@ -1902,6 +1902,11 @@ s32 Battle_GetTimeLimit(void) {
 
 /* 1 when the time limit setting is 0 (no limit). */
 s32 Battle_IsTimeLimitOff(void) {
+#ifdef PORT
+    {   extern int PortCoop_Active(void), PortCoop_FoeRaid(void); /* (a raid has no clock: it ends when a side is down) */
+        extern s32 CoopRaid_On(void);
+        if ((PortCoop_Active() && PortCoop_FoeRaid()) || CoopRaid_On()) return 1; }
+#endif
     return SETUP()->rule.timeLimit == 0;
 }
 

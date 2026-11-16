@@ -1202,7 +1202,7 @@ void BtlHit_ApplyHit(HitChr *atk) {
 void BtlHit_ApplyHit(HitChr *atk) {
     s32 drain = 0;
     s32 launch = 0;
-    s32 traceLvl = -99; /* (test) */
+    s32 traceLvl = -99; /* (the log of a raid's blows) */
     HitChr *def;
     HitObj *dobj;
     s32 kind;
@@ -1276,6 +1276,10 @@ void BtlHit_ApplyHit(HitChr *atk) {
         }
         lvl -= BtlAtk_GetUnk2C(atk);
         traceLvl = lvl;
+#ifdef PORT
+        {   extern s32 CoopRaid_Absorbs(s32 actor, s32 kind); /* (a raid's boss: the plain chain's last blow too) */
+            if (CoopRaid_Absorbs(def->side, kind)) af |= 4; }
+#endif
         if (lvl > 0 && (af & 4)) {
             react = 2;
             if (BtlParam_GetFlags(def) & 4) {

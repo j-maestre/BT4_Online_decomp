@@ -1016,6 +1016,7 @@ int PortCoop_IsThisWeek(int i) {
 int PortCoop_ChWeekly(int i) { return ch(i) ? ch(i)->weekly : 0; }
 int PortCoop_ChRaid(int i) { return ch(i) ? ch(i)->raid : 0; }
 int PortCoop_ChArmor(int i) { return ch(i) ? ch(i)->armor : 0; }
+int PortCoop_FoeRaid(void) { return sSelected >= 0 && !sInfinite ? sCh[sSelected].raid : 0; }
 int PortCoop_FoeArmor(void) { return sSelected >= 0 && !sInfinite ? sCh[sSelected].armor : 0; }
 int PortCoop_ChDamage(int i) { return ch(i) ? ch(i)->damage : 100; }
 const char *PortCoop_ChRequire(int i) { return ch(i) ? ch(i)->require : ""; }

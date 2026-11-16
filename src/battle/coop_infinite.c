@@ -204,6 +204,7 @@ void CoopRaid_SetArmor(s32 on) {
     if (sRaidArmor) fprintf(stderr, "coop: the rivals fight under Falso coraje (a raid)\n");
 }
 extern s32 TagBattle_Active(void);
+s32 CoopRaid_On(void) { return sRaidArmor; }
 static void CoopRaid_Step(s32 n) {
     s32 a;
     for (a = 0; sRaidArmor && a < n && a < 10; a++)
@@ -212,13 +213,20 @@ static void CoopRaid_Step(s32 n) {
             if (*left < 30) *left = 30;
         }
 }
-/* (test: every blow: who takes it, its armour level if the blow got to that comparison, and the reaction) */
+/* The two blows that close the plain chain of blows (attacks 5 and 0xA) are the only ones of that chain the game's
+   armour does not absorb (their record lacks flag 4), so under Falso coraje a plain chain still made the boss
+   stagger at its end. On a raid's boss they are absorbed as the rest of the chain is; charged blows, the chain's
+   strong endings, rushes and techniques are left as the game has them. src/battle/btl_char_hit.c asks. */
+s32 CoopRaid_Absorbs(s32 actor, s32 kind) {
+    return sRaidArmor && (kind == 5 || kind == 0xA) && actor >= 0 && actor < 10 && TagBattle_Team(actor) == 1;
+}
+/* Every blow a raid's boss takes, to the log (the first 400): the attack, its armour level if the blow got to that
+   comparison, and the reaction (2: it did not flinch). */
 void CoopRaid_Trace(s32 actor, s32 kind, s32 flags, s32 level, s32 react) {
     extern s32 gPortResim;
     static s32 n;
-    if (!getenv("BT4_RENDER_TEST") || !getenv("BT4_COOP_ARMOR_TEST") || gPortResim || n++ > 600) return;
-    fprintf(stderr, "coop raid blow: on %d (team %d) attack %x absorbable %d armour level %d reaction %x\n", actor, TagBattle_Team(actor), kind,
-            (flags & 4) != 0, level, react);
+    if (!sRaidArmor || gPortResim || actor < 0 || actor >= 10 || TagBattle_Team(actor) != 1 || n++ > 400) return;
+    fprintf(stderr, "coop raid blow: on %d attack %x absorbable %d armour level %d reaction %d\n", actor, kind, (flags & 4) != 0, level, react);
 }
 /* A rival that changes form by the chapter (CoopBoss_Set), or a raid's: it does not transform by itself (the CPU
    would, and the form the chapter brings in next would then be a step back). src/battle/btl_act_j.c asks. */
