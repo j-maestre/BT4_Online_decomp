@@ -29,6 +29,10 @@
 --   derrota    el texto al perder (opcional)
 --   requiere   (opcional) ruta alternativa: se abre al completar todos los capítulos de esa saga
 --   semanal    (opcional) true: jefe semanal; cada semana se abre uno de ellos (el mismo para todos)
+--   incursion  (opcional) true: es una incursión; sale en el apartado «Incursiones» y no en el mapa de sagas.
+--              Un solo jefe en «rivales» y sus fases en «refuerzos» (máximo 4): cada una es otra barra de vida.
+--              Premio x5, doble EXP y un objeto la primera vez. Ponlas todas juntas al final de la lista.
+--   golpe      (opcional) en %, lo que duelen los golpes de los rivales (100 = normal; 50..300)
 --   secreto    (opcional) capítulo secreto: se abre al sacar nota S o Z en todos los capítulos de esa saga
 --   dialogo    (opcional) la conversación antes del combate, línea a línea: { {"Quién", "Qué dice"}, ... }
 --              (hasta 8 líneas)
@@ -1164,6 +1168,132 @@ return {
         intro = "Jefe semanal: el mismo para todos esta semana. Vida enorme, CPU al máximo y premio triple. ¡Contra el reloj!",
         cierre = "¡Jefe semanal derrotado! Vuelve la semana que viene a por otro.",
         derrota = "El jefe semanal sigue en pie. Tenéis toda la semana.",
+    },
+    -- Incursiones (apartado propio en el menú): un jefe con cinco barras de vida.
+    {
+        id = "r1_freezer",
+        saga = "Incursiones",
+        incursion = true,
+        golpe = 120,
+        titulo = "Incursión: el emperador del universo",
+        pareja = "Vuestros personajes, con todo equipado",
+        dialogo = {
+            { "Freezer", "Voy a enseñaros cada una de mis formas. Ninguno saldrá vivo de este planeta." },
+            { "Goku", "¡Es una incursión! Si uno cae, el otro que lo levante. ¡No os separéis!" },
+        },
+        rivales = {
+            { personaje = 91, nivel = 4, vida = 300, transforma = 35, nombre = "Freezer (1.ª forma)" },
+        },
+        refuerzos = {
+            { personaje = 92, nivel = 4, vida = 320, transforma = 35, nombre = "Freezer (2.ª forma)" },
+            { personaje = 93, nivel = 4, vida = 340, transforma = 35, nombre = "Freezer (3.ª forma)" },
+            { personaje = 94, nivel = 4, vida = 380, transforma = 30, nombre = "Freezer (Forma final)" },
+            { personaje = 95, nivel = 4, vida = 400, nombre = "Freezer (100% de poder)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Freezer con sus cinco formas seguidas, sin descanso entre una y otra. Cinco barras de vida y golpes un 20% más fuertes.",
+        cierre = "¡El emperador ha caído! La primera incursión es vuestra.",
+        derrota = "Freezer ni se ha despeinado. Subid de nivel y volved.",
+    },
+    {
+        id = "r2_cell",
+        saga = "Incursiones",
+        incursion = true,
+        golpe = 130,
+        titulo = "Incursión: el juego de Cell",
+        pareja = "Vuestros personajes, con todo equipado",
+        dialogo = {
+            { "Cell", "Bienvenidos a mi torneo. Hoy no hay reglas, ni fuera del ring." },
+            { "Goku", "¡Es una incursión! Si uno cae, el otro que lo levante. ¡No os separéis!" },
+        },
+        rivales = {
+            { personaje = 105, nivel = 4, vida = 320, transforma = 35, nombre = "Cell (1.ª forma)" },
+        },
+        refuerzos = {
+            { personaje = 106, nivel = 4, vida = 340, transforma = 35, nombre = "Cell (2.ª forma)" },
+            { personaje = 107, nivel = 4, vida = 380, nombre = "Cell (Perfecto)" },
+            { personaje = 107, nivel = 4, vida = 400, nombre = "Cell (regenerado)" },
+            { personaje = 107, nivel = 4, vida = 400, nombre = "Cell (Súper Perfecto)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Cell absorbe, se perfecciona y se regenera. Cinco barras de vida y golpes un 30% más fuertes.",
+        cierre = "Ni una célula ha quedado. ¡Incursión superada!",
+        derrota = "Cell se regenera entre risas. Otra vez será.",
+    },
+    {
+        id = "r3_bu",
+        saga = "Incursiones",
+        incursion = true,
+        golpe = 140,
+        titulo = "Incursión: la pesadilla rosa",
+        pareja = "Vuestros personajes, con todo equipado",
+        dialogo = {
+            { "Majin Bu", "¡Bu os convierte en chocolate!" },
+            { "Goku", "¡Es una incursión! Si uno cae, el otro que lo levante. ¡No os separéis!" },
+        },
+        rivales = {
+            { personaje = 112, nivel = 4, vida = 340, transforma = 35, nombre = "Majin Bu" },
+        },
+        refuerzos = {
+            { personaje = 114, nivel = 4, vida = 360, transforma = 35, nombre = "Súper Bu" },
+            { personaje = 115, nivel = 4, vida = 380, transforma = 35, nombre = "Súper Bu (Gotenks absorbido)" },
+            { personaje = 116, nivel = 4, vida = 400, transforma = 30, nombre = "Súper Bu (Gohan absorbido)" },
+            { personaje = 117, nivel = 4, vida = 400, nombre = "Bu (Forma pura)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Majin Bu y todas sus absorciones, hasta su forma pura. Cinco barras de vida y golpes un 40% más fuertes.",
+        cierre = "Bu desaparece por fin. ¡Incursión superada!",
+        derrota = "Bu se relame. No queda ni rastro de vosotros.",
+    },
+    {
+        id = "r4_broly",
+        saga = "Incursiones",
+        incursion = true,
+        golpe = 150,
+        titulo = "Incursión: el supersaiyajin legendario",
+        pareja = "Vuestros personajes, con todo equipado",
+        dialogo = {
+            { "Broly", "¡Kakarottooo!" },
+            { "Goku", "¡Es una incursión! Si uno cae, el otro que lo levante. ¡No os separéis!" },
+        },
+        rivales = {
+            { personaje = 188, nivel = 4, vida = 340, transforma = 35, nombre = "Broly" },
+        },
+        refuerzos = {
+            { personaje = 189, nivel = 4, vida = 380, transforma = 30, nombre = "Broly (SS)" },
+            { personaje = 190, nivel = 4, vida = 400, nombre = "Broly (Legendario)" },
+            { personaje = 190, nivel = 4, vida = 400, nombre = "Broly (enfurecido)" },
+            { personaje = 190, nivel = 4, vida = 400, nombre = "Broly (sin límites)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Broly no se cansa: cuanto más le pegáis, más fuerte se vuelve. Cinco barras de vida y golpes un 50% más fuertes.",
+        cierre = "El legendario cae de rodillas. ¡Incursión superada!",
+        derrota = "Broly ruge sobre los escombros. Hay que entrenar más.",
+    },
+    {
+        id = "r5_zamas",
+        saga = "Incursiones",
+        incursion = true,
+        golpe = 160,
+        titulo = "Incursión: el dios inmortal",
+        pareja = "Vuestros personajes, con todo equipado",
+        dialogo = {
+            { "Zamas", "Los mortales sois el único error de los dioses. Yo lo corregiré." },
+            { "Goku", "¡Es una incursión! Si uno cae, el otro que lo levante. ¡No os separéis!" },
+        },
+        rivales = {
+            { personaje = 99, nivel = 4, vida = 360, transforma = 35, nombre = "Black Goku" },
+        },
+        refuerzos = {
+            { personaje = 34, nivel = 4, vida = 380, transforma = 30, nombre = "Black Goku (Rosé)" },
+            { personaje = 157, nivel = 4, vida = 400, nombre = "Zamas" },
+            { personaje = 76, nivel = 4, vida = 400, nombre = "Zamas (Fusión)" },
+            { personaje = 76, nivel = 4, vida = 400, nombre = "Zamas (Fusión, poder infinito)" },
+        },
+        escenario = -1, musica = -1, tiempo = 4,
+        intro = "Black Goku, su forma Rosé, Zamas y su fusión. La más dura: cinco barras de vida y golpes un 60% más fuertes.",
+        cierre = "El dios inmortal se deshace en luz. ¡Habéis superado todas las incursiones!",
+        derrota = "Zamas contempla su mundo sin mortales.",
     },
 }
 

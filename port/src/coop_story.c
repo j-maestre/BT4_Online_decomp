@@ -31,6 +31,7 @@ typedef struct PortCoopFoe { int chara, costume, level, health, behind, transfor
 typedef struct PortCoopChapter {
     char id[32], saga[48], title[64], pair[64], secret[48], require[48];
     int weekly;
+    int raid, damage; /* a raid (its own list: one boss in phases); the % its fighters' blows are worth */
     char intro[400], outro[256], defeat[256];
     int stage, bgm, time;
     int foes, reserves, dialogs;
@@ -145,6 +146,8 @@ int PortCoop_Load(void) {
         field_str(L, "secreto", c->secret, sizeof(c->secret));
         field_str(L, "requiere", c->require, sizeof(c->require));
         lua_getfield(L, -1, "semanal"); c->weekly = lua_toboolean(L, -1); lua_pop(L, 1);
+        lua_getfield(L, -1, "incursion"); c->raid = lua_toboolean(L, -1); lua_pop(L, 1);
+        c->damage = field_int(L, "golpe", 100, 50, 300);
         field_str(L, "titulo", c->title, sizeof(c->title));
         field_str(L, "pareja", c->pair, sizeof(c->pair));
         field_str(L, "intro", c->intro, sizeof(c->intro));
@@ -228,7 +231,7 @@ static int crowd(void) { return sSelected >= 0 && !sInfinite && sCh[sSelected].f
 static int crowd_health(int h) { return crowd() ? h * 70 / 100 : h; }
 static int crowd_level(int l) { return crowd() && l > 0 ? l - 1 : l; }
 int PortCoop_Crowd(void) { return crowd(); }
-int PortCoop_FoeDamagePct(void) { return kDiffDamage[PortCoop_Difficulty()] * (crowd() ? 75 : 100) / 100; }
+int PortCoop_FoeDamagePct(void) { return kDiffDamage[PortCoop_Difficulty()] * (crowd() ? 75 : 100) / 100 * (sSelected >= 0 && !sInfinite ? sCh[sSelected].damage : 100) / 100; }
 const char *PortCoop_DifficultyName(int d) { static const char *n[3] = {"Normal", "Dif\303\255cil", "Extremo"}; return n[d < 0 ? 0 : d > 2 ? 2 : d]; }
 const char *PortCoop_AnnounceId(void) {
     static char buf[80];
@@ -679,7 +682,7 @@ void PortAch_Progress(int i, int *now, int *goal) {
     case 5: *now = PortRpg_MyLevel(); *goal = 50; break;
     case 6: *now = PortStat(ST_BEST) >= 7; break;
     case 7: for (j = 0; j < sCount; j++) if (!sCh[j].secret[0] && saga_perfect(sCh[j].saga)) { *now = 1; break; } break;
-    case 8: for (j = 0; j < sCount; j++) if (!sCh[j].secret[0]) { all++; n += PortCoop_Done(j) != 0; } *now = n; *goal = all > 0 ? all : 1; break;
+    case 8: for (j = 0; j < sCount; j++) if (!sCh[j].secret[0] && !sCh[j].raid) { all++; n += PortCoop_Done(j) != 0; } *now = n; *goal = all > 0 ? all : 1; break;
     case 9: *now = PortStat(ST_EXTREME); *goal = 5; break;
     case 10: *now = PortStat(ST_WAVES); *goal = 30; break;
     case 11: for (j = 0; j < sCount; j++) if (sCh[j].secret[0] && PortCoop_Done(j)) { *now = 1; break; } break;
@@ -878,6 +881,11 @@ static void rpg_reward(int won) {
         memcpy(key, "coop_difi_", 10);
         if (sDiff + 1 > Port_Setting(key, 0)) Port_SettingSave(key, sDiff + 1);
         if (sCh[sSelected].weekly) { sRewardZp *= 3; PortObj_Give(); } /* (the weekly boss: triple, and an object) */
+        if (sCh[sSelected].raid) { /* a raid: five times the Z points, twice the experience, and an object the first time */
+            char rk[64]; tkey(rk, sizeof(rk), sSelected, "coop_robj_");
+            sRewardZp *= 5; xp *= 2;
+            if (!Port_Setting(rk, 0)) { Port_SettingSave(rk, 1); PortObj_Give(); }
+        }
         if (sCh[sSelected].require[0]) { /* a route's first win: an object */
             char rk[64]; tkey(rk, sizeof(rk), sSelected, "coop_robj_");
             if (!Port_Setting(rk, 0)) { Port_SettingSave(rk, 1); PortObj_Give(); }
@@ -1004,10 +1012,17 @@ int PortCoop_IsThisWeek(int i) {
     return 0;
 }
 int PortCoop_ChWeekly(int i) { return ch(i) ? ch(i)->weekly : 0; }
+int PortCoop_ChRaid(int i) { return ch(i) ? ch(i)->raid : 0; }
+int PortCoop_ChDamage(int i) { return ch(i) ? ch(i)->damage : 100; }
 const char *PortCoop_ChRequire(int i) { return ch(i) ? ch(i)->require : ""; }
 static int saga_done(const char *saga) { int j, n = 0; for (j = 0; j < sCount; j++) if (!strcmp(sCh[j].saga, saga)) { if (!PortCoop_Done(j)) return 0; n++; } return n > 0; }
 int PortCoop_Unlocked(int i) {
     if (ch(i) && ch(i)->weekly) return PortCoop_IsThisWeek(i);
+    if (ch(i) && ch(i)->raid) { /* a raid: once the raid before it is won (the first always) */
+        int j;
+        for (j = i - 1; j >= 0; j--) if (sCh[j].raid) return PortCoop_Done(i) || PortCoop_Done(j);
+        return 1;
+    }
     if (ch(i) && ch(i)->require[0]) return PortCoop_Done(i) || saga_done(ch(i)->require);
     if (ch(i) && ch(i)->secret[0]) return PortCoop_Done(i) || saga_perfect(ch(i)->secret);
     return i <= 0 || PortCoop_Done(i) || PortCoop_Done(i - 1);

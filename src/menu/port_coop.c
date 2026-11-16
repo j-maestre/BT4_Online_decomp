@@ -116,6 +116,8 @@ static char *Co_Level(s32 level) {
 }
 
 /* ---------------------------------------------------------------------------------------------- input */
+static void Co_MapOpen(void);
+static void Co_RaidOpen(void);
 static void Co_Leave(s32 go) {
     sCo->go = go;
     sCo->leaving = 1;
@@ -127,15 +129,16 @@ static void Co_StartUpdate(void) {
 
     Ps_Prompt(0, "Confirmar");
     Ps_Prompt(2, "Volver");
-    Ps_Move(&sCo->start, 6);
+    Ps_Move(&sCo->start, 7);
     if (pad->gamePressed & (PADG_CROSS | PADG_START)) {
         Snd_PlaySe(1, 1);
         gPortCoopNote[0] = 0;
-        if (sCo->start == 5) { sCo->cur = 0; Co_SetPage(CO_ME); } /* "Mi personaje" */
-        else if (sCo->start == 4) { sCo->cur = 0; sCo->act = 0; sCoFromMe = 0; Co_SetPage(CO_MISSIONS); }
+        if (sCo->start == 6) { sCo->cur = 0; Co_SetPage(CO_ME); } /* "Mi personaje" */
+        else if (sCo->start == 5) { sCo->cur = 0; sCo->act = 0; sCoFromMe = 0; Co_SetPage(CO_MISSIONS); }
         else if (sCo->start == 0) Co_MapOpen();
-        else if (sCo->start == 1) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
-        else { PortCoop_SelectInfinite(sCo->start == 2 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
+        else if (sCo->start == 1) Co_RaidOpen();
+        else if (sCo->start == 2) { PortCoop_JoinBegin(); gPortTboCoop = 2; Co_Leave(1); }
+        else { PortCoop_SelectInfinite(sCo->start == 3 ? 2 : 3); gPortTboCoop = 1; Co_Leave(1); }
     } else if (pad->gamePressed & PADG_TRIANGLE) {
         Snd_PlaySe(1, 2);
         Co_Leave(0);
@@ -295,23 +298,37 @@ static void Co_MissionsUpdate(void) { /* act: 0 the missions, 2 the shop, 1 the 
 extern int PortCoop_ChDialogCount(int i);
 extern const char *PortCoop_ChDialogWho(int i, int k), *PortCoop_ChDialogText(int i, int k);
 #define CO_SAGAS 16
-static s32 sSagaFirst[CO_SAGAS], sSagaLen[CO_SAGAS], sSagaN, sCoSaga;
+/* (the raids, "incursion" in the file, are not on the map: their list is one more entry after the sagas, sSagaN) */
+extern int PortCoop_ChRaid(int i), PortCoop_ChDamage(int i);
+static s32 sSagaFirst[CO_SAGAS + 1], sSagaLen[CO_SAGAS + 1], sSagaN, sCoSaga, sRaidFirst, sRaidLen;
+static s32 Co_InRaid(void) { return sRaidLen > 0 && sCoSaga == sSagaN; }
 static void Co_SagasBuild(void) {
     s32 i, n = PortCoop_Count();
     sSagaN = 0;
+    sRaidFirst = 0; sRaidLen = 0;
+    for (i = 0; i < n; i++) if (PortCoop_ChRaid(i)) { if (!sRaidLen) sRaidFirst = i; if (i == sRaidFirst + sRaidLen) sRaidLen++; }
     for (i = 0; i < n; i++) {
+        if (PortCoop_ChRaid(i)) continue;
         if (sSagaN > 0 && !strcmp(PortCoop_ChSaga(i), PortCoop_ChSaga(sSagaFirst[sSagaN - 1]))) { sSagaLen[sSagaN - 1]++; continue; }
         if (sSagaN >= CO_SAGAS) { sSagaLen[sSagaN - 1]++; continue; }
         sSagaFirst[sSagaN] = i; sSagaLen[sSagaN] = 1; sSagaN++;
     }
+    sSagaFirst[sSagaN] = sRaidFirst; sSagaLen[sSagaN] = sRaidLen;
 }
 static s32 Co_SagaOf(s32 chapter) {
     s32 s;
+    if (sRaidLen > 0 && chapter >= sRaidFirst && chapter < sRaidFirst + sRaidLen) return sSagaN;
     for (s = 0; s < sSagaN; s++) if (chapter >= sSagaFirst[s] && chapter < sSagaFirst[s] + sSagaLen[s]) return s;
     return 0;
 }
 static s32 Co_SagaOpen(s32 s) { s32 i; for (i = 0; i < sSagaLen[s]; i++) if (PortCoop_Unlocked(sSagaFirst[s] + i)) return 1; return 0; }
 static s32 Co_SagaDone(s32 s) { s32 i, d = 0; for (i = 0; i < sSagaLen[s]; i++) d += PortCoop_Done(sSagaFirst[s] + i) != 0; return d; }
+static void Co_ListOpen(s32 saga);
+static void Co_RaidOpen(void) {
+    Co_SagasBuild();
+    if (sRaidLen <= 0) { Co_Note("No hay incursiones en historia_coop/capitulos.lua."); Snd_PlaySe(1, 2); return; }
+    Co_ListOpen(sSagaN);
+}
 static void Co_MapOpen(void) {
     s32 s;
     Co_SagasBuild();
@@ -493,7 +510,7 @@ static void Co_ListUpdate(void) {
         Co_SetPage(CO_CHAPTER);
     } else if (pad->gamePressed & (PADG_TRIANGLE | ((count == 0) ? PADG_CROSS : 0))) {
         Snd_PlaySe(1, 2);
-        Co_SetPage(CO_MAP); /* (back to the map, on this saga) */
+        Co_SetPage(Co_InRaid() ? CO_START : CO_MAP); /* (back to the map, on this saga; the raids, to the first page) */
     }
 }
 
@@ -658,42 +675,53 @@ static void Co_Draw(void) {
             for (k = 0; k < 6; k++) if (!PortMis_Claimed(k) && PortMis_Progress(k) >= PortMis_Goal(k)) ready++;
             ready += PortAch_ReadyCount();
             if (ready) sprintf(mis, "\302\241%d para reclamar!", ready); else mis[0] = 0;
-            Co_Row(60.0f + slide, 380.0f + slide, 132.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 160.0f, "Unirse a una sala", NULL, sCo->start == 1, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 192.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 2, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 220.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 3, 3);
-            Co_Row(60.0f + slide, 380.0f + slide, 252.0f, "Misiones y tienda", ready ? mis : NULL, sCo->start == 4, 1);
+            char raid[40];
+            {   s32 r, rn = 0, rd = 0;
+                for (r = 0; r < count; r++) if (PortCoop_ChRaid(r)) { rn++; rd += PortCoop_Done(r) != 0; }
+                sprintf(raid, "%d de %d", rd, rn);
+            }
+            Co_Row(60.0f + slide, 380.0f + slide, 126.0f, "Crear sala (historia)", NULL, sCo->start == 0, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 152.0f, "Incursiones", raid, sCo->start == 1, 1);
+            Co_Row(60.0f + slide, 380.0f + slide, 178.0f, "Unirse a una sala", NULL, sCo->start == 2, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 204.0f, "Modo infinito: 2 contra 2", rec[0], sCo->start == 3, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 230.0f, "Modo infinito: 2 contra 3", rec[1], sCo->start == 4, 3);
+            Co_Row(60.0f + slide, 380.0f + slide, 256.0f, "Misiones y tienda", ready ? mis : NULL, sCo->start == 5, 1);
             PortTbo_CharaName(PortRpg_MyChara(), mineName, 48);
             sprintf(mine, "%.40s  Nv %d", mineName, PortRpg_MyLevel());
-            Co_Row(60.0f + slide, 380.0f + slide, 280.0f, "Mi personaje", mine, sCo->start == 5, 5);
+            Co_Row(60.0f + slide, 380.0f + slide, 282.0f, "Mi personaje", mine, sCo->start == 6, 5);
             {   f32 x0 = 74.0f + slide, x1 = 366.0f + slide, fill = x0 + (x1 - x0) * PortRpg_LevelMille() / 1000.0f;
-                Ps_Rect(x0, 307.0f, x1, 311.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
-                Ps_Rect(x0, 307.0f, fill, 311.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
+                Ps_Rect(x0, 309.0f, x1, 313.0f, Ps_Rgba(23, 50, 60, 0x80), Ps_Rgba(23, 50, 60, 0x80));
+                Ps_Rect(x0, 309.0f, fill, 313.0f, Ps_Rgba(255, 213, 91, 0x80), Ps_Rgba(255, 190, 60, 0x80));
                 {   extern const char *PortRpg_XpText(void);
-                    Ps_Text(x1 + 8.0f, Ps_TextTop(309.0f, 0.36f), (char *)PortRpg_XpText(), 0.36f, 110.0f, 3); }
+                    Ps_Text(x1 + 8.0f, Ps_TextTop(311.0f, 0.36f), (char *)PortRpg_XpText(), 0.36f, 110.0f, 3); }
             }
         }
         {   s32 k, won = 0, top = 0;
             char prog[96];
+            s32 chapters = 0;
             for (k = 0; k < count; k++) {
+                if (PortCoop_ChRaid(k)) continue; /* (the raids: counted on their own row) */
+                chapters++;
                 if (PortCoop_Done(k)) won++;
                 if (PortCoop_ChGrade(k)[0] == 'S' || PortCoop_ChGrade(k)[0] == 'Z') top++;
             }
-            sprintf(prog, "Cap\303\255tulos superados: %d de %d   \302\267   Notas S o Z: %d", won, count, top);
-            Ps_Text(60.0f + slide, 116.0f, prog, 0.42f, 360.0f, 3);
+            sprintf(prog, "Cap\303\255tulos superados: %d de %d   \302\267   Notas S o Z: %d", won, chapters, top);
+            Ps_Text(60.0f + slide, 110.0f, prog, 0.42f, 360.0f, 3);
         }
-        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 318.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 2, 5);
+        if (gPortCoopNote[0]) Co_Wrap(50.0f + slide, 320.0f, gPortCoopNote, 0.5f, 410.0f, 18.0f, 2, 5);
         else if (PortCoop_RewardLine()[0]) { /* the last battle's grade, Z points and experience */
             sprintf(line, "\303\232ltimo combate: %.120s", PortCoop_RewardLine());
-            Co_Wrap(50.0f + slide, 318.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
+            Co_Wrap(50.0f + slide, 320.0f, line, 0.5f, 410.0f, 18.0f, 2, 1);
         }
-        box = sCo->start == 5
+        box = sCo->start == 6
             ? Co_RewardsBox()
-            : sCo->start == 4
+            : sCo->start == 1
+            ? "Incursiones: un solo jefe con varias barras de vida, cada fase m\303\241s fuerte y con golpes que duelen m\303\241s. Premio x5, doble EXP y un objeto la primera vez."
+            : sCo->start == 5
             ? "Misiones diarias y semanales, la tienda (c\303\241psulas, experiencia y t\303\255tulos) y las estad\303\255sticas."
             : sCo->start == 0
             ? "Elige el cap\303\255tulo y crea la sala. Despu\303\251s dale el c\303\263digo a tu amigo."
-            : sCo->start == 1
+            : sCo->start == 2
             ? "Escribe el c\303\263digo que te d\303\251 tu amigo. El cap\303\255tulo o el modo lo elige quien crea la sala."
             : "Oleadas sin fin: cuando cae un rival entra otro, cada vez con m\303\241s vida y m\303\241s da\303\261o. Cada 5 oleadas, un jefe. Crea la sala y pasa el c\303\263digo.";
     } else if (sCo->page == CO_PICK) {
@@ -970,14 +998,17 @@ static void Co_Draw(void) {
                 if (PortCoop_ChBestDiff(i) >= 2) Ps_Cat(done, PortCoop_ChBestDiff(i) >= 3 ? " (Extremo)" : " (Dif\303\255cil)", 40);
                 {   extern const char *PortCoop_ChSecret(int);
                     extern int PortCoop_ChWeekly(int);extern const char *PortCoop_ChRequire(int);
-                    value = PortCoop_ChWeekly(i) ? (open ? "\302\241Esta semana!" : "Otra semana") : PortCoop_Done(i) ? done : open ? (char *)PortCoop_ChSaga(i)
+                    value = PortCoop_ChWeekly(i) ? (open ? "\302\241Esta semana!" : "Otra semana") : PortCoop_Done(i) ? done : open ? (PortCoop_ChRaid(i) ? "Abierta" : (char *)PortCoop_ChSaga(i))
                           : PortCoop_ChSecret(i)[0] ? "Secreto" : PortCoop_ChRequire(i)[0] ? "Ruta cerrada" : "Bloqueado"; }
                 Co_Row(40.0f + slide, 420.0f + slide, 82.0f + 30.0f * (i - sCo->top), open ? (char *)PortCoop_ChTitle(i) : "? ? ?", value,
                        i == sCo->cur, PortCoop_Done(i) ? 5 : open ? 3 : 4);
             }
             if (sCo->top > first) Ps_Text(220.0f + slide, 66.0f, "...", 0.5f, 40.0f, 4);
             if (sCo->top + CO_ROWS < end) Ps_Text(220.0f + slide, 82.0f + 30.0f * CO_ROWS, "...", 0.5f, 40.0f, 4);
-            box = PortCoop_Unlocked(sCo->cur)
+            box = Co_InRaid()
+                ? (PortCoop_Unlocked(sCo->cur) ? "Elige una incursi\303\263n: un jefe con varias barras de vida. Cada una que super\303\251is abre la siguiente. Tri\303\241ngulo: volver."
+                                               : "Bloqueada: primero ten\303\251is que superar la incursi\303\263n anterior.")
+                : PortCoop_Unlocked(sCo->cur)
                 ? "Elige un cap\303\255tulo. Cada uno que super\303\251is desbloquea el siguiente. Tri\303\241ngulo: volver al mapa."
                 : PortCoop_ChSecret(sCo->cur)[0] || PortCoop_ChRequire(sCo->cur)[0] || PortCoop_ChWeekly(sCo->cur) ? Co_SecretBox(sCo->cur)
                 : "Bloqueado: primero ten\303\251is que superar el cap\303\255tulo anterior.";
@@ -1015,7 +1046,10 @@ static void Co_Draw(void) {
             Ps_Text(120.0f + slide, 216.0f + 18.0f * k, line, 0.5f, 340.0f, 0);
         }
         {   char more[96];
-            if (PortCoop_ChReserveCount(c) > 0) {
+            if (PortCoop_ChReserveCount(c) > 0 && PortCoop_ChRaid(c)) {
+                sprintf(more, "%d barras de vida en total  \302\267  sus golpes: %d%%", PortCoop_ChReserveCount(c) + PortCoop_ChFoeCount(c), PortCoop_ChDamage(c));
+                Ps_Text(120.0f + slide, 216.0f + 18.0f * (PortCoop_ChFoeCount(c) < 3 ? PortCoop_ChFoeCount(c) : 3), more, 0.5f, 340.0f, 1);
+            } else if (PortCoop_ChReserveCount(c) > 0) {
                 sprintf(more, "+ %d refuerzos: entran cuando cae un rival", PortCoop_ChReserveCount(c));
                 Ps_Text(120.0f + slide, 216.0f + 18.0f * (PortCoop_ChFoeCount(c) < 3 ? PortCoop_ChFoeCount(c) : 3), more, 0.5f, 340.0f, 1);
             }
@@ -1041,7 +1075,8 @@ static void Co_Draw(void) {
         }
         Co_Row(60.0f + slide, 300.0f + slide, 306.0f, "Crear sala", NULL, 1, 3);
         {   extern int PortCoop_ChWeekly(int);
-            box = PortCoop_ChWeekly(c) ? "Jefe semanal: premio triple y un objeto. Cuanto antes ganes, mejor nota (contrarreloj). Izquierda/derecha: dificultad."
+            box = PortCoop_ChRaid(c) ? "Incursi\303\263n: premio x5, doble EXP y un objeto la primera vez. Si cae uno, el otro puede revivirlo. Izquierda/derecha: dificultad."
+                : PortCoop_ChWeekly(c) ? "Jefe semanal: premio triple y un objeto. Cuanto antes ganes, mejor nota (contrarreloj). Izquierda/derecha: dificultad."
                 : "Izquierda/derecha: dificultad. Cuanto antes ganes, mejor nota. Crea la sala y dale el c\303\263digo a tu amigo."; }
     }
     PortOnline_Raw(0);
@@ -1123,12 +1158,13 @@ s32 PortCoop_Run(void) {
     sCo = Heap_Alloc(sizeof(CoopScreen), 0x20, 0, 2);
     memset(sCo, 0, sizeof(CoopScreen));
     PortCoop_Load();
-    if (sCoPickBack) { sCo->start = 5; sCoPickBack = 0; sCo->page = CO_ME; sCo->cur = 0; }
-    else if (joined) sCo->start = 1; /* back from a room joined: the first page, on Join */
-    else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 3 : 2; /* back from the endless mode: on it */
+    if (sCoPickBack) { sCo->start = 6; sCoPickBack = 0; sCo->page = CO_ME; sCo->cur = 0; }
+    else if (joined) sCo->start = 2; /* back from a room joined: the first page, on Join */
+    else if (PortCoop_Infinite()) sCo->start = PortCoop_Infinite() == 3 ? 4 : 3; /* back from the endless mode: on it */
     else if (before >= 0 && before < PortCoop_Count()) { /* back from a room made: its chapter on its saga's list */
         Co_SagasBuild();
         sCoSaga = Co_SagaOf(before);
+        if (Co_InRaid()) sCo->start = 1;
         sCo->cur = before;
         sCo->top = before - sSagaFirst[sCoSaga] >= CO_ROWS ? before - CO_ROWS + 1 : sSagaFirst[sCoSaga];
         sCo->page = CO_LIST;
@@ -1148,6 +1184,19 @@ s32 PortCoop_Run(void) {
         ColorFade_Update();
         live = !sCo->leaving && ColorFade_IsInDone();
         Ps_PromptsClear();
+        if (live && getenv("BT4_RENDER_TEST") && getenv("BT4_COOP_RAID_TEST")) { /* (test: the raids' list, a raid's page, back) */
+            extern void Port_TraceInt(const char *s, int v);
+            s32 f = sCo->frames;
+            if (f == 40) sCo->start = 1;
+            if (f == 44 || f == 70 || f == 90 || f == 100 || f == 110) gPad[0].gamePressed = PADG_CROSS;
+            if (f == 150) gPad[0].gameRepeat = PADG_DOWN;
+            if (f == 130 || f == 140 || f == 170) gPad[0].gamePressed = PADG_TRIANGLE;
+            if (f == 43 || f == 58 || f == 62 || f == 72 || f == 125 || f == 135 || f == 145 || f == 155 || f == 175) {
+                Port_TraceInt("coop raid test: frame", f); Port_TraceInt("  page", sCo->page); Port_TraceInt("  cur", sCo->cur);
+                Port_TraceInt("  in raid", Co_InRaid()); Port_TraceInt("  start", sCo->start);
+            }
+            if (f == 110) gPad[0].gamePressed = 0; /* (not into a room) */
+        }
         if (live) {
             if (sCo->page == CO_START) Co_StartUpdate();
             else if (sCo->page == CO_LIST) Co_ListUpdate();
